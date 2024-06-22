@@ -4,238 +4,275 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define BUFF_SIZE 1024
-#define DELIMITER '$'
+#define BUFF_SIZE 102
+#define DELIMITER '?'
+#define TEMP_STR 51
 
 enum Type
 {
-    OPERATOR,
-    NUMBER,
-    PARENTHESIS,
-    UNKNOWN,
-    LIMIT,
+        OPERATOR,
+        NUMBER,
+        PARENTHESIS,
+        UNKNOWN,
+        LIMIT,
 };
 
 enum Bp
 {
-    NUM,
-    ADD_SUB,
-    MUL_DIV,
-    MAX,
+        NUM,
+        ADD_SUB,
+        MUL_DIV,
+        MAX,
 };
 
-typedef struct Token
+struct Token
 {
-    char *val;
-    enum Type type;
-    enum Bp bp;
-} Token;
+        char *val;
+        enum Type type;
+        enum Bp bp;
+};
 
-typedef struct Tokens
+struct Tokens
 {
-    Token *tokens;
-    size_t len;
-} Tokens;
+        struct Token *tokens;
+        size_t len;
+};
 
-enum Type get_type(char c);
 
-void debug_tokens(Tokens *tokens);
+// functions
+
+void    debug_tokens(struct Tokens *tokens);
+void    *calc_malloc(size_t len);
+void    calc_log(char *message, const char *function, int line);
+void    calc_cleanup();
+void    add_token(struct Tokens *tokens, char *str, enum Type type, enum Bp bp);
+
+struct Tokens *tokens;
+char *input;
+size_t input_len;
 
 int main(int argsc, char **argsv)
 {
-    Tokens *tokens = malloc(sizeof(Tokens));
+        atexit(calc_cleanup);
 
-    if (tokens == NULL)
-        return 1;
 
-    char *input = malloc(sizeof(char) * BUFF_SIZE);
+        tokens = calc_malloc(sizeof(struct Tokens));
 
-    if (input == NULL)
-    {
-        free(tokens);
-        return 1;
-    }
-    else
-        input[0] = '\0';
+        input = calc_malloc(sizeof(char) * BUFF_SIZE);
 
-    if (argsc < 2)
-    {
-        printf("USE: calc <expr>\n");
-        free(input);
-        free(tokens);
-        return 1;
-    }
+        input[BUFF_SIZE] = '\0';
 
-    if (argsc > 2)
-    {
-        for (int i = 1; i < argsc; i++)
+
+        if (argsc < 2)
         {
-            for (size_t j = 0; j < strlen(argsv[i]); j++) 
-            {
-                if (isspace(argsv[i][j])) continue;
-                strncat(input, &argsv[i][j], 1);
-            }
+                printf("USE: calc <expr>\n");
+                exit(1);
         }
-    } 
-    else
-        strcpy(input, argsv[1]);
-
-    input[strlen(input)] = (char) DELIMITER;
-    input[strlen(input)+1] = '\0';
-
-    tokens->tokens = malloc(sizeof(Token) * BUFF_SIZE);
-    tokens->len = 0;
-
-    char *temp = malloc(sizeof(char) * 50);
-    if (temp == NULL) {
-        free(input);
-        free(tokens->tokens);
-        free(tokens);
-        return 1;
-    }
 
 
-    {
-        temp[0] = '\0';
-        int pos = 0;
-        bool prefix = false;
 
-        for (size_t i = 0; i < strlen(input); i++) 
+        // Joins all args into one string
+        if (argsc > 1)
         {
-            char c = input[i];
-            enum Type t;
-            enum Bp bp;
-            Token tk;
-
-            switch (c)
-            {
-                case '(':
-                case ')':
-                    t = PARENTHESIS;
-                    bp = MAX;
-                    break;
-
-                case '+':
-                case '-':
-                    t = OPERATOR;
-                    bp = ADD_SUB;
-                    break;
-
-                case '*':
-                case '/':
-                    t = OPERATOR;
-                    bp = MUL_DIV;
-                    break;
-
-                case '.':
-                case '0':
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
-                case '8':
-                case '9':
-                    t = NUMBER;
-                    break;
-                case '$':
-                    {
-                        if (pos != 0)
+                for (int i = 1; i < argsc; i++)
+                {
+                        for (size_t j = 0; j < strlen(argsv[i]); j++) 
                         {
-                            temp[pos] = '\0';
-                            tk.val = malloc((sizeof(char) * pos) + 1);
-                            strcpy(tk.val, temp);
-                            tk.type = NUMBER;
-                            tk.bp = NUM;
-
-                            pos = 0;
-                            temp[0] = '\0';
-
-                            tokens->tokens[tokens->len] = tk;
-                            tokens->len++;
+                                if (!isspace(argsv[i][j]))
+                                        strncat(input, &argsv[i][j], 1);
                         }
-                        t = LIMIT;
-                        break;
-                    }
-                default:
-                    t = UNKNOWN;
-                    break;
-            }
-
-            if (i == 0 && t == OPERATOR) prefix = true;
-
-            if (t == NUMBER)
-            {
-                temp[pos] = c;
-                pos++;
-            }
-
-            if (t == OPERATOR && prefix)
-            {
-                prefix = false;
-
-                tk.val = malloc(sizeof(char) * 2);
-                tk.val[0] = c;
-                tk.val[1] = '\0';
-                tk.bp = bp;
-                tk.type = t;
-
-                tokens->tokens[tokens->len] = tk;
-                tokens->len++;
-            }
-
-            if (t == OPERATOR && t != LIMIT)
-            {
-                temp[pos] = '\0';
-                tk.val = malloc((sizeof(char) * pos) + 1);
-                strcpy(tk.val, temp);
-                tk.type = NUMBER;
-                tk.bp = NUM;
-
-                pos = 0;
-                temp[0] = '\0';
-
-                tokens->tokens[tokens->len] = tk;
-                tokens->len++;
+                }
+        } 
 
 
-                Token optk;
-                optk.val = malloc(sizeof(char) * 2);
-                optk.val[0] = c;
-                optk.val[1] = '\0';
-                optk.bp = bp;
-                optk.type = t;
+        input_len = strlen(input);
+        input[input_len] = (char) DELIMITER;
+        input[++input_len] = '\0';
 
-                tokens->tokens[tokens->len] = optk;
-                tokens->len++;
-            }
+
+
+        tokens->len = 0;
+        tokens->tokens = calc_malloc(sizeof(struct Token) * BUFF_SIZE);
+
+
+        {
+                char temp[TEMP_STR];
+                int pos = 0;
+                bool was_number = false;
+
+                temp[TEMP_STR - 1] = '\0';
+
+                for (size_t i = 0; i < input_len; i++) 
+                {
+                        char c = input[i];
+                        enum Type t;
+                        enum Bp bp;
+
+                        switch (c)
+                        {
+                                case '(':
+                                case ')':
+                                        t = PARENTHESIS;
+                                        bp = MAX;
+                                        if (i == 0)
+                                        {
+                                                temp[0] = c;
+                                                temp[1] = '\0';
+                                                add_token(tokens, temp, t, bp);
+                                                continue;
+                                        }
+
+                                        break;
+                                case '+':
+                                case '-':
+                                        t = OPERATOR;
+                                        bp = ADD_SUB;
+                                        if (i == 0)
+                                        {
+                                                temp[0] = c;
+                                                temp[1] = '\0';
+                                                add_token(tokens, temp, t, bp);
+                                                continue;
+                                        }
+
+                                        break;
+                                case '*':
+                                case '/':
+                                        t = OPERATOR;
+                                        bp = MUL_DIV;
+
+                                        break;
+                                case '.':
+                                case '0':
+                                case '1':
+                                case '2':
+                                case '3':
+                                case '4':
+                                case '5':
+                                case '6':
+                                case '7':
+                                case '8':
+                                case '9':
+                                        was_number = true;
+                                        t = NUMBER;
+                                        temp[pos] = c;
+                                        pos++;
+
+                                        continue;
+                                case '?':
+                                        temp[pos] = '\0';
+                                        add_token(tokens, temp, NUMBER, NUM);
+                                        break;
+                                default:
+                                        t = UNKNOWN;
+                                        break;
+                        }
+
+                        if (was_number && (t == OPERATOR || t == PARENTHESIS))
+                        {
+                                temp[pos] = '\0';
+                                add_token(tokens, temp, NUMBER, NUM);
+                                was_number = false;
+
+                                temp[pos] = c;
+                                temp[pos+1] = '\0';
+                                add_token(tokens, &temp[pos], t, bp);
+                                pos = 0;
+                        }
+                }
+
         }
 
-    }
-    debug_tokens(tokens);
+        debug_tokens(tokens);
 
-    for (size_t i = 0; i < tokens->len; i++) {
-        free(tokens->tokens[i].val);
-    }
-    free(tokens->tokens);
-    free(temp);
-    free(input);
-    free(tokens);
-    return 0;
+        return 0;
 }
 
-void debug_tokens(Tokens *tokens)
+void debug_tokens(struct Tokens *tokens)
 {
-    const char *lookup_t[] = {"OPERATOR", "NUMBER", "PARENTHESIS", "UNKNOWN"};
-    for (size_t i = 0; i < tokens->len; i++)
-    {
-        printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
-                i, 
-                tokens->tokens[i].val,
-                lookup_t[tokens->tokens[i].type],
-                tokens->tokens[i].bp
-              );
-    }
+        const char *lookup_t[] = {
+                "OPERATOR",
+                "NUMBER",
+                "PARENTHESIS",
+                "UNKNOWN"
+        };
+
+        for (size_t i = 0; i < tokens->len; i++) 
+        {
+                printf("Index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
+                                i, 
+                                tokens->tokens[i].val,
+                                lookup_t[tokens->tokens[i].type],
+                                tokens->tokens[i].bp
+                      );
+        }
+}
+
+void *calc_malloc(size_t len)
+{
+        void *p;
+
+        if (!(p = malloc(len))) 
+        {
+                calc_log("Error in allocation", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+        }
+
+        return p;
+}
+
+void add_token(struct Tokens *tokens, char *str, enum Type type, enum Bp bp)
+{
+        struct Token tk;
+
+        switch (type)
+        {
+                case PARENTHESIS:
+                case OPERATOR:
+                        tk.val = calc_malloc(sizeof(char) * 2);
+                        tk.val[0] = str[0];
+                        tk.val[1] = '\0';
+                        tk.bp = bp;
+                        tk.type = type;
+
+                        tokens->tokens[tokens->len] = tk;
+                        tokens->len++;
+
+                        break;
+
+                case NUMBER:
+                        tk.val = calc_malloc((sizeof(char) * strlen(str)) + 1);
+                        strcpy(tk.val, str);
+                        tk.type = NUMBER;
+                        tk.bp = NUM;
+                        tokens->tokens[tokens->len] = tk;
+                        tokens->len++;
+
+                        break;
+
+                default:
+                        break;
+        }
+}
+
+void calc_log(char *message, const char *function, int line)
+{
+        printf("%s at %s::line %d", message, function, line);
+}
+
+
+void calc_cleanup()
+{
+        if (tokens) 
+        {
+                for (size_t i = 0; i < tokens->len; i++)
+                        free(tokens->tokens[i].val);
+
+                free(tokens->tokens);
+                free(tokens);
+        }
+
+
+        if (input) 
+                free(input);
 }
