@@ -81,6 +81,31 @@ void add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp)
     }
 }
 
+struct Token *next()
+{
+        struct Token *ptk = NULL;
+
+        if (tokens && tokens->curr < tokens->len)
+        {
+                ptk = &tokens->tokens[tokens->curr];
+                tokens->curr++;
+        }
+
+        return ptk;
+}
+
+struct Token *peek()
+{
+        struct Token *ptk = NULL;
+
+        if (tokens->curr < tokens->len)
+        {
+                ptk = &tokens->tokens[tokens->curr + 1];
+        }
+
+        return ptk; 
+}
+
 void debug_tokens(struct Lexer *tokens)
 {
     const char *lookup_t[] = {"OPERATOR", "NUMBER", "PARENTHESIS", "UNKNOWN"};

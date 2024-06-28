@@ -11,20 +11,21 @@
 
 struct Lexer *tokens = NULL;  
 struct Leaf *tree = NULL;
-char *input = {0};           
+char *input = NULL;           
 size_t input_len = 0; 
 
 //TODO: Error parsing the PARENTHESIS in this expr'12+2*3(7)'
 //TODO: Define error codes
 //TODO: Find valgrind error
 //TODO: Handle parenthesis in tree
+//TODO: Handle errors when input empty
+//TODO: Replace type with operator_type and create a function to know if it's operator
 
 struct Leaf *increasing_prec(enum Bp min_bp);
 struct Leaf *parse_leaf();
-struct Token *next();
-struct Token *peek();
 struct Leaf *make_leaf(struct Token *tk);
 void debug_tree(struct Leaf *leaf, const char *indent);
+float eval(struct Leaf *tree);
 
 int main(int argsc, char **argsv)
 {
@@ -34,6 +35,7 @@ int main(int argsc, char **argsv)
         tokens = calc_malloc(sizeof(struct Lexer));
 
         input = calc_malloc(sizeof(char) * BUFF_SIZE);
+        memset(input, 0, sizeof(char) * BUFF_SIZE);
 
 
         if (argsc < 2)
@@ -161,33 +163,9 @@ int main(int argsc, char **argsv)
         debug_tokens(tokens);
         tree = increasing_prec(MIN_LIMIT);
         debug_tree(tree, "");
+        printf("result: %.2f\n", eval(tree));
 
         return 0;
-}
-
-struct Token *next()
-{
-        struct Token *ptk = NULL;
-
-        if (tokens->curr < tokens->len)
-        {
-                ptk = &tokens->tokens[tokens->curr];
-                tokens->curr++;
-        }
-
-        return ptk; 
-}
-
-struct Token *peek()
-{
-        struct Token *ptk = NULL;
-
-        if (tokens->curr < tokens->len)
-        {
-                ptk = &tokens->tokens[tokens->curr + 1];
-        }
-
-        return ptk; 
 }
 
 struct Leaf *make_leaf(struct Token *tk)
@@ -232,7 +210,8 @@ struct Leaf *parse_leaf()
 struct Leaf *increasing_prec(enum Bp min_bp)
 {
         struct Leaf *left = parse_leaf();
-        struct Token *next_t = next();
+        struct Token *next_t = NULL;
+        next_t = next();
 
         if (!next_t)
                 return left;
@@ -261,10 +240,8 @@ void debug_tree(struct Leaf *leaf, const char *indent)
         return;
     }
 
-    // Print current node
     printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
     
-    // Print left child
     if (leaf->left)
     {
         printf("%sLeft:\n", indent);
@@ -273,12 +250,56 @@ void debug_tree(struct Leaf *leaf, const char *indent)
         debug_tree(leaf->left, new_indent);
     }
 
-    // Print right child
     if (leaf->right)
     {
         printf("%sRight:\n", indent);
         char new_indent[256];
         snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
         debug_tree(leaf->right, new_indent);
+    }
+}
+
+float eval(struct Leaf *tree)
+{
+    if (tree == NULL)
+    {
+        fprintf(stderr, "Error: Null tree node encountered\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (tree->value && tree->value->type == NUMBER)
+    {
+        char *endptr;
+        return strtof(tree->value->val, &endptr);
+    }
+
+    float lhs = eval(tree->left);
+    float rhs = eval(tree->right);
+
+    if (strcmp(tree->value->val, "+") == 0)
+    {
+        return lhs + rhs;
+    }
+    else if (strcmp(tree->value->val, "-") == 0)
+    {
+        return lhs - rhs;
+    }
+    else if (strcmp(tree->value->val, "*") == 0)
+    {
+        return lhs * rhs;
+    }
+    else if (strcmp(tree->value->val, "/") == 0)
+    {
+        if (rhs == 0)
+        {
+            fprintf(stderr, "Error: Division by zero\n");
+            exit(EXIT_FAILURE);
+        }
+        return lhs / rhs;
+    }
+    else
+    {
+        fprintf(stderr, "Error: Unknown operator %s\n", tree->value->val);
+        exit(EXIT_FAILURE);
     }
 }

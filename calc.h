@@ -11,6 +11,14 @@ enum Type
         LIMIT,
 };
 
+enum Operator_type {
+        OP_ADD,
+        OP_SUB,
+        OP_MUL,
+        OP_DIV,
+        OP_UNKNOWN
+};
+
 enum Bp
 {
         MIN_LIMIT,
@@ -52,6 +60,8 @@ void    calc_log(char *message, const char *function, int line);
 void    calc_cleanup();
 void    add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp);
 void    debug_tokens(struct Lexer *tokens);
+struct  Token *next();
+struct  Token *peek();
 void    free_tree(struct Leaf *tree);
 
 #endif
