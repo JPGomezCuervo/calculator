@@ -5,8 +5,22 @@
 
 void *calc_malloc(size_t len)
 {
-    void *p;
+    void *p = NULL;
     p = malloc(len);
+
+    if (!p) {
+        calc_log("Error in allocation", __func__, __LINE__);
+        exit(EXIT_FAILURE);
+    }
+
+    memset(p, 0, len); 
+    return p;
+}
+
+void *calc_calloc(int num, size_t size)
+{
+    void *p = NULL;
+    p = calloc(num, size);
 
     if (!p) {
         calc_log("Error in allocation", __func__, __LINE__);
@@ -54,30 +68,26 @@ void calc_cleanup()
 void add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp)
 {
     struct Token tk;
+    // TODO: handle errors and numbers
 
-    switch (type) {
-        case PARENTHESIS:
-        case OPERATOR:
-            tk.val = calc_malloc(sizeof(char) * 2);
+    if (is_operator(type))
+    {
+            tk.val = calc_calloc(2, sizeof(char));
             tk.val[0] = str[0];
             tk.val[1] = '\0';
             tk.bp = bp;
             tk.type = type;
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
-            break;
-
-        case NUMBER:
-            tk.val = calc_malloc((sizeof(char) * strlen(str)) + 1);
+    }
+    else
+    {
+            tk.val = calc_calloc(strlen(str) + 1, sizeof(char));
             strcpy(tk.val, str);
             tk.type = NUMBER;
             tk.bp = NUM;
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
-            break;
-
-        default:
-            break;
     }
 }
 
@@ -96,19 +106,27 @@ struct Token *next()
 
 struct Token *peek()
 {
-        struct Token *ptk = NULL;
 
         if (tokens->curr < tokens->len)
         {
-                ptk = &tokens->tokens[tokens->curr + 1];
+                return &tokens->tokens[tokens->curr + 1];
         }
-
-        return ptk; 
+        return NULL;
 }
 
 void debug_tokens(struct Lexer *tokens)
 {
-    const char *lookup_t[] = {"OPERATOR", "NUMBER", "PARENTHESIS", "UNKNOWN"};
+    const char *lookup_t[] = {
+        "OP_ADD",
+        "OP_SUB",
+        "OP_MUL",
+        "OP_DIV",
+        "OPEN_PARENTHESIS",
+        "CLOSE_PARENTHESIS",
+        "LIMIT",
+        "NUMBER",
+        "UNKNOWN"
+};
     for (size_t i = 0; i < tokens->len; i++)
     {
         printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
@@ -120,3 +138,30 @@ void debug_tokens(struct Lexer *tokens)
     }
 }
 
+bool is_operator(enum Type t)
+{
+        switch (t)
+        {
+                case OP_ADD:
+                case OP_SUB:
+                case OP_MUL:
+                case OP_DIV:
+                        return true;
+                case OPEN_PARENTHESIS:
+                case CLOSE_PARENTHESIS:
+                case LIMIT:
+                case NUMBER:
+                case UNKNOWN:
+                        return false;
+                default:
+                        return false;
+        }
+}
+
+bool is_parenthesis(enum Type t)
+{
+        if (t == OPEN_PARENTHESIS || t == CLOSE_PARENTHESIS)
+                return true;
+
+        return false;
+}

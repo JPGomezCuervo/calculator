@@ -1,22 +1,19 @@
 #ifndef CALC_H
 #define CALC_H
 #include <stddef.h>
+#include <stdbool.h>
 
 enum Type
 {
-        OPERATOR,
-        NUMBER,
-        PARENTHESIS,
-        UNKNOWN,
-        LIMIT,
-};
-
-enum Operator_type {
         OP_ADD,
         OP_SUB,
         OP_MUL,
         OP_DIV,
-        OP_UNKNOWN
+        OPEN_PARENTHESIS,
+        CLOSE_PARENTHESIS,
+        LIMIT,
+        NUMBER,
+        UNKNOWN
 };
 
 enum Bp
@@ -56,6 +53,7 @@ extern size_t input_len;
 extern struct Leaf *tree;
 
 void    *calc_malloc(size_t len);
+void    *calc_calloc(int num, size_t size);
 void    calc_log(char *message, const char *function, int line);
 void    calc_cleanup();
 void    add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp);
@@ -63,5 +61,7 @@ void    debug_tokens(struct Lexer *tokens);
 struct  Token *next();
 struct  Token *peek();
 void    free_tree(struct Leaf *tree);
+bool    is_operator(enum Type t);
+bool    is_parenthesis(enum Type t);
 
 #endif

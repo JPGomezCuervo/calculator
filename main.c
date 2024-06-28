@@ -5,7 +5,7 @@
 #include <string.h>
 #include "calc.h"
 
-#define BUFF_SIZE 102
+#define BUFF_SIZE 101
 #define DELIMITER '?'
 #define TEMP_STR 51
 
@@ -16,10 +16,10 @@ size_t input_len = 0;
 
 //TODO: Error parsing the PARENTHESIS in this expr'12+2*3(7)'
 //TODO: Define error codes
-//TODO: Find valgrind error
 //TODO: Handle parenthesis in tree
 //TODO: Handle errors when input empty
 //TODO: Replace type with operator_type and create a function to know if it's operator
+//TODO: Check errors before entry to the functions
 
 struct Leaf *increasing_prec(enum Bp min_bp);
 struct Leaf *parse_leaf();
@@ -31,11 +31,11 @@ int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
 
-
         tokens = calc_malloc(sizeof(struct Lexer));
+        tokens->len = 0;
+        tokens->tokens = calc_calloc(BUFF_SIZE, sizeof(struct Token));
 
-        input = calc_malloc(sizeof(char) * BUFF_SIZE);
-        memset(input, 0, sizeof(char) * BUFF_SIZE);
+        input = calc_calloc(BUFF_SIZE, sizeof(char));
 
 
         if (argsc < 2)
@@ -67,8 +67,6 @@ int main(int argsc, char **argsv)
 
 
 
-        tokens->len = 0;
-        tokens->tokens = calc_malloc(sizeof(struct Token) * BUFF_SIZE);
 
 
         {
@@ -87,8 +85,19 @@ int main(int argsc, char **argsv)
                         switch (c)
                         {
                                 case '(':
+                                        t = OPEN_PARENTHESIS;
+                                        bp = MAX;
+                                        if (i == 0)
+                                        {
+                                                temp[0] = c;
+                                                temp[1] = '\0';
+                                                add_token(tokens, temp, t, bp);
+                                                continue;
+                                        }
+
+                                        break;
                                 case ')':
-                                        t = PARENTHESIS;
+                                        t = CLOSE_PARENTHESIS;
                                         bp = MAX;
                                         if (i == 0)
                                         {
@@ -100,8 +109,19 @@ int main(int argsc, char **argsv)
 
                                         break;
                                 case '+':
+                                        t = OP_ADD;
+                                        bp = ADD_SUB;
+                                        if (i == 0)
+                                        {
+                                                temp[0] = c;
+                                                temp[1] = '\0';
+                                                add_token(tokens, temp, t, bp);
+                                                continue;
+                                        }
+
+                                        break;
                                 case '-':
-                                        t = OPERATOR;
+                                        t = OP_SUB;
                                         bp = ADD_SUB;
                                         if (i == 0)
                                         {
@@ -113,8 +133,12 @@ int main(int argsc, char **argsv)
 
                                         break;
                                 case '*':
+                                        t = OP_MUL;
+                                        bp = MUL_DIV;
+
+                                        break;
                                 case '/':
-                                        t = OPERATOR;
+                                        t = OP_DIV;
                                         bp = MUL_DIV;
 
                                         break;
@@ -145,7 +169,7 @@ int main(int argsc, char **argsv)
                                         break;
                         }
 
-                        if (was_number && (t == OPERATOR || t == PARENTHESIS))
+                        if (was_number && (is_operator(t) || is_parenthesis(t)))
                         {
                                 temp[pos] = '\0';
                                 add_token(tokens, temp, NUMBER, NUM);
@@ -162,8 +186,12 @@ int main(int argsc, char **argsv)
 
         debug_tokens(tokens);
         tree = increasing_prec(MIN_LIMIT);
-        debug_tree(tree, "");
-        printf("result: %.2f\n", eval(tree));
+
+        if (tree != NULL)
+        {
+                debug_tree(tree, "");
+                printf("result: %.2f\n", eval(tree));
+        }
 
         return 0;
 }
@@ -191,20 +219,14 @@ struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *
 
 struct Leaf *parse_leaf()
 {
+        // TODO: Handle parenthesis, numbers and unknown
         struct Token *tk = next();
-        
-        switch (tk->type)
-        {
-                case OPERATOR:
-                        return make_leaf(tk);
-                case NUMBER:
-                        return make_leaf(tk);
-                case PARENTHESIS:
-                case UNKNOWN:
-                case LIMIT:
-                default:
-                                return NULL;
-        }
+
+        if (is_operator(tk->type)) 
+                return make_leaf(tk);
+
+        return make_leaf(tk);
+
 }
 
 struct Leaf *increasing_prec(enum Bp min_bp)
@@ -216,7 +238,7 @@ struct Leaf *increasing_prec(enum Bp min_bp)
         if (!next_t)
                 return left;
 
-        if (next_t->type == OPERATOR)
+        if (is_operator(next_t->type))
         {
                 while (next_t->bp > min_bp) 
                 {
@@ -235,71 +257,80 @@ struct Leaf *increasing_prec(enum Bp min_bp)
 
 void debug_tree(struct Leaf *leaf, const char *indent)
 {
-    if (leaf == NULL)
-    {
-        return;
-    }
+        if (leaf == NULL)
+        {
+                return;
+        }
 
-    printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
-    
-    if (leaf->left)
-    {
-        printf("%sLeft:\n", indent);
-        char new_indent[256];
-        snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-        debug_tree(leaf->left, new_indent);
-    }
+        printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
 
-    if (leaf->right)
-    {
-        printf("%sRight:\n", indent);
-        char new_indent[256];
-        snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-        debug_tree(leaf->right, new_indent);
-    }
+        if (leaf->left)
+        {
+                printf("%sLeft:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->left, new_indent);
+        }
+
+        if (leaf->right)
+        {
+                printf("%sRight:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->right, new_indent);
+        }
 }
 
-float eval(struct Leaf *tree)
-{
-    if (tree == NULL)
-    {
+float eval(struct Leaf *tree) {
+    if (tree == NULL) {
         fprintf(stderr, "Error: Null tree node encountered\n");
         exit(EXIT_FAILURE);
     }
 
-    if (tree->value && tree->value->type == NUMBER)
-    {
+    if (tree->value == NULL) {
+        fprintf(stderr, "Error: Tree node has no value\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (tree->value->type == NUMBER) {
         char *endptr;
         return strtof(tree->value->val, &endptr);
     }
 
-    float lhs = eval(tree->left);
-    float rhs = eval(tree->right);
+    float lhs = 0.0, rhs = 0.0;
 
-    if (strcmp(tree->value->val, "+") == 0)
-    {
-        return lhs + rhs;
-    }
-    else if (strcmp(tree->value->val, "-") == 0)
-    {
-        return lhs - rhs;
-    }
-    else if (strcmp(tree->value->val, "*") == 0)
-    {
-        return lhs * rhs;
-    }
-    else if (strcmp(tree->value->val, "/") == 0)
-    {
-        if (rhs == 0)
-        {
-            fprintf(stderr, "Error: Division by zero\n");
-            exit(EXIT_FAILURE);
-        }
-        return lhs / rhs;
-    }
-    else
-    {
-        fprintf(stderr, "Error: Unknown operator %s\n", tree->value->val);
+    if (tree->left) {
+        lhs = eval(tree->left);
+    } else {
+        fprintf(stderr, "Error: Left subtree is NULL\n");
         exit(EXIT_FAILURE);
     }
+
+    if (tree->right) {
+        rhs = eval(tree->right);
+    } else {
+        fprintf(stderr, "Error: Right subtree is NULL\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Line 310
+    switch (tree->value->type) {
+        case OP_ADD:
+            return lhs + rhs;
+        case OP_SUB:
+            return lhs - rhs;
+        case OP_MUL:
+            return lhs * rhs;
+        case OP_DIV:
+            if (rhs == 0) {
+                fprintf(stderr, "Error: Division by zero\n");
+                exit(EXIT_FAILURE);
+            }
+            return lhs / rhs;
+        case UNKNOWN:
+        default:
+            fprintf(stderr, "Error: Unknown operator %s\n", tree->value->val);
+            exit(EXIT_FAILURE);
+    }
 }
+
