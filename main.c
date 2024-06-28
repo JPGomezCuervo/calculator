@@ -9,20 +9,31 @@
 #define DELIMITER '?'
 #define TEMP_STR 51
 
-struct Tokens *tokens = NULL;  
-char *input = NULL;           
+struct Lexer *tokens = NULL;  
+struct Leaf *tree = NULL;
+char *input = {0};           
 size_t input_len = 0; 
+
+//TODO: Error parsing the PARENTHESIS in this expr'12+2*3(7)'
+//TODO: Define error codes
+//TODO: Find valgrind error
+//TODO: Handle parenthesis in tree
+
+struct Leaf *increasing_prec(enum Bp min_bp);
+struct Leaf *parse_leaf();
+struct Token *next();
+struct Token *peek();
+struct Leaf *make_leaf(struct Token *tk);
+void debug_tree(struct Leaf *leaf, const char *indent);
 
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
 
 
-        tokens = calc_malloc(sizeof(struct Tokens));
+        tokens = calc_malloc(sizeof(struct Lexer));
 
         input = calc_malloc(sizeof(char) * BUFF_SIZE);
-
-        input[BUFF_SIZE] = '\0';
 
 
         if (argsc < 2)
@@ -45,6 +56,7 @@ int main(int argsc, char **argsv)
                         }
                 }
         } 
+
 
 
         input_len = strlen(input);
@@ -127,6 +139,7 @@ int main(int argsc, char **argsv)
                                         break;
                                 default:
                                         t = UNKNOWN;
+                                        bp = UNKNOWNBP;
                                         break;
                         }
 
@@ -146,6 +159,126 @@ int main(int argsc, char **argsv)
         }
 
         debug_tokens(tokens);
+        tree = increasing_prec(MIN_LIMIT);
+        debug_tree(tree, "");
 
         return 0;
+}
+
+struct Token *next()
+{
+        struct Token *ptk = NULL;
+
+        if (tokens->curr < tokens->len)
+        {
+                ptk = &tokens->tokens[tokens->curr];
+                tokens->curr++;
+        }
+
+        return ptk; 
+}
+
+struct Token *peek()
+{
+        struct Token *ptk = NULL;
+
+        if (tokens->curr < tokens->len)
+        {
+                ptk = &tokens->tokens[tokens->curr + 1];
+        }
+
+        return ptk; 
+}
+
+struct Leaf *make_leaf(struct Token *tk)
+{
+        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        leaf->value = tk;
+        leaf->left = NULL;
+        leaf->right = NULL;
+        return leaf;
+}
+
+
+struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *right)
+{
+        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        leaf->value = op;
+        leaf->left = left;
+        leaf->right = right;
+
+        return leaf;
+}
+
+
+struct Leaf *parse_leaf()
+{
+        struct Token *tk = next();
+        
+        switch (tk->type)
+        {
+                case OPERATOR:
+                        return make_leaf(tk);
+                case NUMBER:
+                        return make_leaf(tk);
+                case PARENTHESIS:
+                case UNKNOWN:
+                case LIMIT:
+                default:
+                                return NULL;
+        }
+}
+
+struct Leaf *increasing_prec(enum Bp min_bp)
+{
+        struct Leaf *left = parse_leaf();
+        struct Token *next_t = next();
+
+        if (!next_t)
+                return left;
+
+        if (next_t->type == OPERATOR)
+        {
+                while (next_t->bp > min_bp) 
+                {
+                        struct Token *op = next_t;
+                        struct Leaf *right = increasing_prec(op->bp);
+
+                        left = make_binary_expr(op,left, right);
+                        next_t = peek();
+
+                        if (!next_t)
+                                break;
+                }
+        }
+        return left;
+}
+
+void debug_tree(struct Leaf *leaf, const char *indent)
+{
+    if (leaf == NULL)
+    {
+        return;
+    }
+
+    // Print current node
+    printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
+    
+    // Print left child
+    if (leaf->left)
+    {
+        printf("%sLeft:\n", indent);
+        char new_indent[256];
+        snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+        debug_tree(leaf->left, new_indent);
+    }
+
+    // Print right child
+    if (leaf->right)
+    {
+        printf("%sRight:\n", indent);
+        char new_indent[256];
+        snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+        debug_tree(leaf->right, new_indent);
+    }
 }

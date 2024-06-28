@@ -6,8 +6,9 @@
 void *calc_malloc(size_t len)
 {
     void *p;
+    p = malloc(len);
 
-    if (!(p = malloc(len))) {
+    if (!p) {
         calc_log("Error in allocation", __func__, __LINE__);
         exit(EXIT_FAILURE);
     }
@@ -20,6 +21,16 @@ void calc_log(char *message, const char *function, int line)
         printf("%s at %s::line %d", message, function, line);
 }
 
+
+void free_tree(struct Leaf *tree)
+{
+        if (!tree)
+                return;
+        free_tree(tree->right);
+        free_tree(tree->left);
+
+        free(tree);
+}
 
 void calc_cleanup()
 {
@@ -35,9 +46,12 @@ void calc_cleanup()
 
         if (input) 
                 free(input);
+
+        if (tree)
+                free_tree(tree);
 }
 
-void add_token(struct Tokens *tokens, char *str, enum Type type, enum Bp bp)
+void add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp)
 {
     struct Token tk;
 
@@ -67,7 +81,7 @@ void add_token(struct Tokens *tokens, char *str, enum Type type, enum Bp bp)
     }
 }
 
-void debug_tokens(struct Tokens *tokens)
+void debug_tokens(struct Lexer *tokens)
 {
     const char *lookup_t[] = {"OPERATOR", "NUMBER", "PARENTHESIS", "UNKNOWN"};
     for (size_t i = 0; i < tokens->len; i++)
