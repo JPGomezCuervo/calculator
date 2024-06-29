@@ -14,7 +14,6 @@ struct Leaf *tree = NULL;
 char *input = NULL;           
 size_t input_len = 0; 
 
-//TODO: Error parsing the PARENTHESIS in this expr'12+2*3(7)'
 //TODO: Define error codes
 //TODO: Handle parenthesis in tree
 //TODO: Handle errors when input empty
