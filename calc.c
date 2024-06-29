@@ -35,7 +35,6 @@ void calc_log(char *message, const char *function, int line)
         printf("%s at %s::line %d", message, function, line);
 }
 
-
 void free_tree(struct Leaf *tree)
 {
         if (!tree)
@@ -65,7 +64,7 @@ void calc_cleanup()
                 free_tree(tree);
 }
 
-void add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp)
+void add_token(char *str, enum Type type, enum Bp bp)
 {
     struct Token tk;
     // TODO: handle errors and numbers
@@ -85,7 +84,7 @@ void add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp)
             tk.val = calc_calloc(strlen(str) + 1, sizeof(char));
             strcpy(tk.val, str);
             tk.type = NUMBER;
-            tk.bp = NUM;
+            tk.bp = BP_NUMBER;
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
     }
@@ -136,6 +135,48 @@ void debug_tokens(struct Lexer *tokens)
                 tokens->tokens[i].bp
               );
     }
+}
+
+enum Type get_type(char c) {
+
+        switch (c) {
+                case '+':
+                        return OP_ADD;
+                case '-':
+                        return OP_SUB;
+                case '*':
+                        return OP_MUL;
+                case '/':
+                        return OP_DIV;
+                case '(':
+                        return OPEN_PARENTHESIS;
+                case ')':
+                        return CLOSE_PARENTHESIS;
+                case '?':
+                        return LIMIT;
+                case '0': case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8': case '9':
+                        return NUMBER;
+                default:
+                        return UNKNOWN;
+        }
+}
+
+enum Bp get_bp(char c) {
+
+        switch (c) {
+                case '+':
+                case '-':
+                        return BP_ADD_SUB;
+                case '*':
+                case '/':
+                        return BP_MUL_DIV;
+                case '0': case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8': case '9':
+                        return BP_NUMBER;
+                default:
+                        return BP_UNKNOWN;
+        }
 }
 
 bool is_operator(enum Type t)

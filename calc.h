@@ -19,11 +19,11 @@ enum Type
 enum Bp
 {
         MIN_LIMIT,
-        NUM,
-        ADD_SUB,
-        MUL_DIV,
-        MAX,
-        UNKNOWNBP,
+        BP_NUMBER,
+        BP_ADD_SUB,
+        BP_MUL_DIV,
+        BP_MAX,
+        BP_UNKNOWN,
 };
 
 struct Token
@@ -56,12 +56,14 @@ void    *calc_malloc(size_t len);
 void    *calc_calloc(int num, size_t size);
 void    calc_log(char *message, const char *function, int line);
 void    calc_cleanup();
-void    add_token(struct Lexer *tokens, char *str, enum Type type, enum Bp bp);
+void    add_token(char *str, enum Type type, enum Bp bp);
 void    debug_tokens(struct Lexer *tokens);
 struct  Token *next();
 struct  Token *peek();
 void    free_tree(struct Leaf *tree);
 bool    is_operator(enum Type t);
 bool    is_parenthesis(enum Type t);
+enum    Type get_type(char c);
+enum    Bp get_bp(char c);
 
 #endif

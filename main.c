@@ -18,7 +18,6 @@ size_t input_len = 0;
 //TODO: Define error codes
 //TODO: Handle parenthesis in tree
 //TODO: Handle errors when input empty
-//TODO: Replace type with operator_type and create a function to know if it's operator
 //TODO: Check errors before entry to the functions
 
 struct Leaf *increasing_prec(enum Bp min_bp);
@@ -26,6 +25,8 @@ struct Leaf *parse_leaf();
 struct Leaf *make_leaf(struct Token *tk);
 void debug_tree(struct Leaf *leaf, const char *indent);
 float eval(struct Leaf *tree);
+void handle_number(bool *was_number, char *temp, int *pos, char c);
+void handle_number_end(bool *was_number, char *temp, int *pos);
 
 int main(int argsc, char **argsv)
 {
@@ -45,8 +46,7 @@ int main(int argsc, char **argsv)
         }
 
 
-
-        // Joins all args into one string
+        /* Joins all args into one string */
         if (argsc > 1)
         {
                 for (int i = 1; i < argsc; i++)
@@ -59,126 +59,51 @@ int main(int argsc, char **argsv)
                 }
         } 
 
-
-
         input_len = strlen(input);
         input[input_len] = (char) DELIMITER;
         input[++input_len] = '\0';
 
 
-
-
-
         {
                 char temp[TEMP_STR];
+                temp[TEMP_STR - 1] = '\0';
                 int pos = 0;
                 bool was_number = false;
 
-                temp[TEMP_STR - 1] = '\0';
 
                 for (size_t i = 0; i < input_len; i++) 
                 {
                         char c = input[i];
-                        enum Type t;
-                        enum Bp bp;
+                        enum Type t = get_type(c);
+                        enum Bp bp = get_bp(c);
 
-                        switch (c)
+                        /* Handle prefix */
+                        if (i == 0 && is_operator(t)) 
                         {
-                                case '(':
-                                        t = OPEN_PARENTHESIS;
-                                        bp = MAX;
-                                        if (i == 0)
-                                        {
-                                                temp[0] = c;
-                                                temp[1] = '\0';
-                                                add_token(tokens, temp, t, bp);
-                                                continue;
-                                        }
-
-                                        break;
-                                case ')':
-                                        t = CLOSE_PARENTHESIS;
-                                        bp = MAX;
-                                        if (i == 0)
-                                        {
-                                                temp[0] = c;
-                                                temp[1] = '\0';
-                                                add_token(tokens, temp, t, bp);
-                                                continue;
-                                        }
-
-                                        break;
-                                case '+':
-                                        t = OP_ADD;
-                                        bp = ADD_SUB;
-                                        if (i == 0)
-                                        {
-                                                temp[0] = c;
-                                                temp[1] = '\0';
-                                                add_token(tokens, temp, t, bp);
-                                                continue;
-                                        }
-
-                                        break;
-                                case '-':
-                                        t = OP_SUB;
-                                        bp = ADD_SUB;
-                                        if (i == 0)
-                                        {
-                                                temp[0] = c;
-                                                temp[1] = '\0';
-                                                add_token(tokens, temp, t, bp);
-                                                continue;
-                                        }
-
-                                        break;
-                                case '*':
-                                        t = OP_MUL;
-                                        bp = MUL_DIV;
-
-                                        break;
-                                case '/':
-                                        t = OP_DIV;
-                                        bp = MUL_DIV;
-
-                                        break;
-                                case '.':
-                                case '0':
-                                case '1':
-                                case '2':
-                                case '3':
-                                case '4':
-                                case '5':
-                                case '6':
-                                case '7':
-                                case '8':
-                                case '9':
-                                        was_number = true;
-                                        t = NUMBER;
-                                        temp[pos] = c;
-                                        pos++;
-
-                                        continue;
-                                case '?':
-                                        temp[pos] = '\0';
-                                        add_token(tokens, temp, NUMBER, NUM);
-                                        break;
-                                default:
-                                        t = UNKNOWN;
-                                        bp = UNKNOWNBP;
-                                        break;
+                                temp[0] = c;
+                                add_token(temp, t, bp);
+                                continue;
                         }
 
-                        if (was_number && (is_operator(t) || is_parenthesis(t)))
-                        {
-                                temp[pos] = '\0';
-                                add_token(tokens, temp, NUMBER, NUM);
-                                was_number = false;
+                        /* Store char into a buffer until another operator is found */
+                        if (isdigit(c))
+                                handle_number(&was_number, temp, &pos, c);
 
-                                temp[pos] = c;
-                                temp[pos+1] = '\0';
-                                add_token(tokens, &temp[pos], t, bp);
-                                pos = 0;
+                        if (is_operator(t) || is_parenthesis(t))
+                        {
+                                if (was_number)
+                                        handle_number_end(&was_number, temp, &pos);
+
+                                temp[0] = c;
+                                add_token(temp, t, bp);
+                        }
+                        if (t == LIMIT)
+                        {
+                                if (was_number)
+                                {
+                                        temp[pos] = '\0';
+                                        handle_number_end(&was_number, temp, &pos);
+                                }
                         }
                 }
 
@@ -205,7 +130,6 @@ struct Leaf *make_leaf(struct Token *tk)
         return leaf;
 }
 
-
 struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *right)
 {
         struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
@@ -215,7 +139,6 @@ struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *
 
         return leaf;
 }
-
 
 struct Leaf *parse_leaf()
 {
@@ -313,7 +236,6 @@ float eval(struct Leaf *tree) {
         exit(EXIT_FAILURE);
     }
 
-    // Line 310
     switch (tree->value->type) {
         case OP_ADD:
             return lhs + rhs;
@@ -334,3 +256,17 @@ float eval(struct Leaf *tree) {
     }
 }
 
+void handle_number(bool *was_number, char *temp, int *pos, char c)
+{
+        *was_number = true;
+        temp[*pos] = c;
+        *pos += 1;
+}
+
+void handle_number_end(bool *was_number, char *temp, int *pos)
+{
+        *was_number = false;
+        temp[*pos] = '\0';
+        add_token(temp, NUMBER, BP_NUMBER);
+        *pos = 0;
+}
