@@ -1,6 +1,5 @@
 import sys
 from enum import Enum
-# import pudb; pu.db
 
 # globals
 input_str = sys.argv[1]
@@ -35,7 +34,7 @@ class Leaf:
             self.right.visualize(indent + "    ")
 
     def calc(self):
-        if self.value.isdigit() or self.value.startswith('-'):
+        if self.value.isdigit(): 
             return int(self.value)
 
         if self.left is not None:
@@ -70,6 +69,12 @@ def get_precedence(char):
 
 def is_operator(char):
     return char in ('*', '/', '+', '-')
+
+def is_open_parenthesis(char):
+    return char == '('
+
+def is_close_parenthesis(char):
+    return char == ')'
 
 # utils
 def get_token():
@@ -111,18 +116,30 @@ def parse_leaf():
         left = Leaf('NEG')
         left.right = right
         return left
+    elif is_open_parenthesis(tk):
+        left = parse_expr()
+        get_next()
+        return left
     else:
         return  make_node(tk)
 
+# cuando la precedencia aumenta el arbol se construye hacia abajo
+# cuando la precedencia disminuye el arbol se construye hacia arriba
 # parser
+ #     _
+ #    / \
+ #   +   1
+ #  / \
+ # 3   *
+ #    / \
+ #   5   2
 
-# 2+9*3
 def parse_expr(bp = 0):
     left = parse_leaf()
 
     while True:
         node = increasing_prec(left, bp)
-        if node == left:
+        if left == node:
             break;
         left = node
     
@@ -131,23 +148,23 @@ def parse_expr(bp = 0):
 def increasing_prec(left, bp = Bp.BP_MIN_LIMIT.value):
     next = peek()
 
-    if next == None:
+    if is_close_parenthesis(next):
         return left
 
-    if (is_operator(next)):
+    if next and is_operator(next):
         while get_precedence(next) > bp:
             op = get_next()
             right = parse_expr(get_precedence(op))
             left = make_binary_expr(left, op, right)
             next = peek()
 
-            if next == None:
+            if next == None or is_close_parenthesis(next):
                 break;
+
 
     return left
 
 # print(f"\nFinal expression tree:")
-# pudb.set_trace()
 lolis = parse_expr()
 lolis.visualize()
 print(f"result: {lolis.calc()}")
