@@ -23,13 +23,18 @@ size_t input_len = 0;
 
 int main(int argsc, char **argsv)
 {
+        int totalLength;
+        int i;
+        char *p_des, *p_src;
+        char *str;
+
         atexit(calc_cleanup);
 
         tokens = calc_malloc(sizeof(struct Lexer));
         tokens->len = 0;
         tokens->tokens = calc_calloc(BUFF_SIZE, sizeof(struct Token));
 
-        input = calc_calloc(BUFF_SIZE, sizeof(char));
+        // input = calc_calloc(BUFF_SIZE, sizeof(char));
 
 
         if (argsc < 2)
@@ -38,20 +43,52 @@ int main(int argsc, char **argsv)
                 exit(1);
         }
 
-
         /* Joins all args into one string */
-        if (argsc > 1)
+        totalLength = 0;
+        for (i = 1; i < argsc; i++) 
+        {
+            totalLength += strlen(argsv[i]) + 1;  // +1 additional space for \0
+        }
+
+        str = malloc(totalLength);
+        if (str == NULL) 
+        {
+            printf("malloc fail!!\n");
+            return 1;
+        }
+        
+        str[0] = '\0';
+        p_des = str;
+        for (i = 1; i < argsc; i++) 
+        {
+            p_src = argsv[i];
+            while (*p_src != '\0')
+            {
+                if (*p_src != ' ')
+                {
+                    *p_des = *p_src;
+                    p_des++;
+                    p_src++;
+                }
+            }
+        }
+
+/*
+        if (argsc > 1) // redundant
         {
                 for (int i = 1; i < argsc; i++)
                 {
-                        for (size_t j = 0; j < strlen(argsv[i]); j++) 
+                        for (size_t j = 0; j < strlen(argsv[i]); j++) // strlen will search for '\0' from the beginning of argsv[i] every loop
                         {
                                 if (!isspace(argsv[i][j]))
-                                        strncat(input, &argsv[i][j], 1);
+                                        strncat(input, &argsv[i][j], 1); // strncat will search for '\0' from the beginning of input every time
                         }
                 }
         } 
-
+*/
+        // input = str;
+        // input_len = p_des - str;
+        
         input_len = strlen(input);
         input[input_len] = (char) DELIMITER;
         input[++input_len] = '\0';
@@ -64,6 +101,7 @@ int main(int argsc, char **argsv)
 
         for (size_t i = 0; i < input_len; i++) 
         {
+                // lifetime of the variable
                 char c = input[i];
                 enum Type t = get_type(c);
                 enum Bp bp = get_bp(c);
