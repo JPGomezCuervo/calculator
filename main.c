@@ -18,6 +18,7 @@ size_t input_len = 0;
 //TODO: Handle errors when input empty
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
+//TODO: Find a way to not creating too avoid tokens, just allocate nodes
 
 
 int main(int argsc, char **argsv)
@@ -109,13 +110,10 @@ int main(int argsc, char **argsv)
                 }
         }
 
-
-        // debug_tokens(tokens);
         tree = parse_expr(MIN_LIMIT);
-        // debug_tree(tree, "");
 
         if (tree != NULL)
-                printf("result: %.2f\n", eval_tree(tree));
+                printf("%.2f\n", eval_tree(tree));
 
         return 0;
 }
