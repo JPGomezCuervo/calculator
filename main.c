@@ -80,7 +80,7 @@ int main(int argsc, char **argsv)
                         enum Bp bp = get_bp(c);
 
                         /* Handle prefix */
-                        if (i == 0 && is_operator(t)) 
+                        if (i == 0 && (is_operator(t) || t == OPEN_PARENT)) 
                         {
                                 if (c == '-')
                                         t = UNARY_NEG;

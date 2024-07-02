@@ -69,7 +69,7 @@ void add_token(char *str, enum Type type, enum Bp bp)
     struct Token tk;
     // TODO: handle errors and numbers
 
-    if (is_operator(type) || type == UNARY_NEG || type == UNARY_POS)
+    if (is_operator(type) || type == UNARY_NEG || type == UNARY_POS || type == OPEN_PARENT || CLOSE_PARENT)
     {
             tk.val = calc_calloc(2, sizeof(char));
             tk.val[0] = str[0];
@@ -168,6 +168,9 @@ enum Type get_type(char c) {
 enum Bp get_bp(char c) {
 
         switch (c) {
+                case ')':
+                case '(':
+                        return MIN_LIMIT;
                 case '+':
                 case '-':
                         return BP_ADD_SUB;
