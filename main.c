@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,18 +15,20 @@ struct Leaf *tree = NULL;
 char *input = NULL;           
 size_t input_len = 0; 
 
+//TODO: fix unary/prefix
 //TODO: Define error codes
 //TODO: Handle parenthesis in tree
 //TODO: Handle errors when input empty
 //TODO: Check errors before entry to the functions
 
-struct Leaf *increasing_prec(enum Bp min_bp);
+struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp);
 struct Leaf *parse_leaf();
 struct Leaf *make_leaf(struct Token *tk);
 void debug_tree(struct Leaf *leaf, const char *indent);
 float eval(struct Leaf *tree);
 void handle_number(bool *was_number, char *temp, int *pos, char c);
 void handle_number_end(bool *was_number, char *temp, int *pos);
+struct Leaf *parse_expr(enum Bp bp);
 
 int main(int argsc, char **argsv)
 {
@@ -79,6 +82,12 @@ int main(int argsc, char **argsv)
                         /* Handle prefix */
                         if (i == 0 && is_operator(t)) 
                         {
+                                if (c == '-')
+                                        t = UNARY_NEG;
+
+                                if (c == '+')
+                                        t = UNARY_POS;
+
                                 temp[0] = c;
                                 add_token(temp, t, bp);
                                 continue;
@@ -88,7 +97,7 @@ int main(int argsc, char **argsv)
                         if (isdigit(c))
                                 handle_number(&was_number, temp, &pos, c);
 
-                        if (is_operator(t) || is_parenthesis(t))
+                        if (is_operator(t) || t == OPEN_PARENT || t == CLOSE_PARENT)
                         {
                                 if (was_number)
                                         handle_number_end(&was_number, temp, &pos);
@@ -109,7 +118,7 @@ int main(int argsc, char **argsv)
         }
 
         debug_tokens(tokens);
-        tree = increasing_prec(MIN_LIMIT);
+        tree = parse_expr(MIN_LIMIT);
 
         if (tree != NULL)
         {
@@ -141,36 +150,65 @@ struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *
 
 struct Leaf *parse_leaf()
 {
-        // TODO: Handle parenthesis, numbers and unknown
-        struct Token *tk = next();
+        struct Token *tk = get_next();
+        struct Leaf *leaf = NULL;
 
-        if (is_operator(tk->type)) 
-                return make_leaf(tk);
-
-        return make_leaf(tk);
-
+        if (tk->type == UNARY_NEG)
+        {
+                struct Leaf *right = parse_leaf(); 
+                leaf = make_leaf(tk);
+                leaf->right = right;
+        }
+        else if (tk->type == OPEN_PARENT)
+        {
+                leaf = parse_expr(MIN_LIMIT);
+                /* consumes close parenthesis */
+                get_next(); 
+        }
+        else 
+        {
+                leaf = make_leaf(tk);
+        }
+                
+        return leaf;
 }
 
-struct Leaf *increasing_prec(enum Bp min_bp)
+struct Leaf *parse_expr(enum Bp bp)
 {
         struct Leaf *left = parse_leaf();
-        struct Token *next_t = NULL;
-        next_t = next();
+        struct Leaf *node = NULL;
 
-        if (!next_t)
+        while (true)
+        {
+                node = increasing_prec(left, bp);
+
+                if (left == node)
+                        break;
+                left = node;
+        }
+        return left;
+}
+
+struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
+{
+        struct Token *next = NULL;
+        next = peek();
+
+
+        if (next == NULL || next->type == CLOSE_PARENT)
                 return left;
 
-        if (is_operator(next_t->type))
+        if (is_operator(next->type))
         {
-                while (next_t->bp > min_bp) 
+                while (next->bp >= min_bp) 
                 {
-                        struct Token *op = next_t;
-                        struct Leaf *right = increasing_prec(op->bp);
-
+                        struct Token *op = get_next();
+                        struct Leaf *right = parse_expr(op->bp);
                         left = make_binary_expr(op,left, right);
-                        next_t = peek();
 
-                        if (!next_t)
+                        next = peek();
+
+                        if (next == NULL || next->type == CLOSE_PARENT)
                                 break;
                 }
         }
@@ -203,56 +241,55 @@ void debug_tree(struct Leaf *leaf, const char *indent)
         }
 }
 
-float eval(struct Leaf *tree) {
-    if (tree == NULL) {
-        fprintf(stderr, "Error: Null tree node encountered\n");
-        exit(EXIT_FAILURE);
-    }
+float eval(struct Leaf *tree)
+{
+        assert(tree != NULL);
+        assert(tree->value != NULL);
 
-    if (tree->value == NULL) {
-        fprintf(stderr, "Error: Tree node has no value\n");
-        exit(EXIT_FAILURE);
-    }
+        float lhs = 0.0, rhs = 0.0;
 
-    if (tree->value->type == NUMBER) {
-        char *endptr;
-        return strtof(tree->value->val, &endptr);
-    }
+        if (tree->value->type == NUMBER) 
+                return strtof(tree->value->val, NULL);
 
-    float lhs = 0.0, rhs = 0.0;
 
-    if (tree->left) {
-        lhs = eval(tree->left);
-    } else {
-        fprintf(stderr, "Error: Left subtree is NULL\n");
-        exit(EXIT_FAILURE);
-    }
+        if (tree->left == NULL)
+                lhs = 0;
+        else
+                lhs = eval(tree->left);
 
-    if (tree->right) {
-        rhs = eval(tree->right);
-    } else {
-        fprintf(stderr, "Error: Right subtree is NULL\n");
-        exit(EXIT_FAILURE);
-    }
 
-    switch (tree->value->type) {
-        case OP_ADD:
-            return lhs + rhs;
-        case OP_SUB:
-            return lhs - rhs;
-        case OP_MUL:
-            return lhs * rhs;
-        case OP_DIV:
-            if (rhs == 0) {
-                fprintf(stderr, "Error: Division by zero\n");
-                exit(EXIT_FAILURE);
-            }
-            return lhs / rhs;
-        case UNKNOWN:
-        default:
-            fprintf(stderr, "Error: Unknown operator %s\n", tree->value->val);
-            exit(EXIT_FAILURE);
-    }
+        if (tree->right == NULL)
+                rhs = 0;
+        else
+                rhs = eval(tree->right);
+
+
+        switch (tree->value->type) 
+        {
+                case OP_ADD:
+                        return lhs + rhs;
+                case OP_SUB:
+                        return lhs - rhs;
+                case OP_MUL:
+                        return lhs * rhs;
+                case OP_DIV:
+                        if (rhs == 0) {
+                                fprintf(stderr, "Error: Division by zero\n");
+                                exit(EXIT_FAILURE);
+                        }
+                        return lhs / rhs;
+                case OPEN_PARENT: 
+                case CLOSE_PARENT: 
+                case LIMIT: 
+                case NUMBER:
+                        fprintf(stderr, "Error: invalid operator %s\n", tree->value->val);
+                        exit(EXIT_FAILURE);
+                case UNARY_NEG:
+                        return -rhs;
+                default:
+                        fprintf(stderr, "Error: unknown operator %s\n", tree->value->val);
+                        exit(EXIT_FAILURE);
+        }
 }
 
 void handle_number(bool *was_number, char *temp, int *pos, char c)

@@ -69,7 +69,7 @@ void add_token(char *str, enum Type type, enum Bp bp)
     struct Token tk;
     // TODO: handle errors and numbers
 
-    if (is_operator(type))
+    if (is_operator(type) || type == UNARY_NEG || type == UNARY_POS)
     {
             tk.val = calc_calloc(2, sizeof(char));
             tk.val[0] = str[0];
@@ -79,7 +79,7 @@ void add_token(char *str, enum Type type, enum Bp bp)
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
     }
-    else
+    else 
     {
             tk.val = calc_calloc(strlen(str) + 1, sizeof(char));
             strcpy(tk.val, str);
@@ -90,7 +90,7 @@ void add_token(char *str, enum Type type, enum Bp bp)
     }
 }
 
-struct Token *next()
+struct Token *get_next()
 {
         struct Token *ptk = NULL;
 
@@ -108,7 +108,7 @@ struct Token *peek()
 
         if (tokens->curr < tokens->len)
         {
-                return &tokens->tokens[tokens->curr + 1];
+                return &tokens->tokens[tokens->curr];
         }
         return NULL;
 }
@@ -116,6 +116,8 @@ struct Token *peek()
 void debug_tokens(struct Lexer *tokens)
 {
     const char *lookup_t[] = {
+        "UNARY_NEG",
+        "UNARY_POS",
         "OP_ADD",
         "OP_SUB",
         "OP_MUL",
@@ -124,6 +126,7 @@ void debug_tokens(struct Lexer *tokens)
         "CLOSE_PARENTHESIS",
         "LIMIT",
         "NUMBER",
+        "UNARY",
         "UNKNOWN"
 };
     for (size_t i = 0; i < tokens->len; i++)
@@ -149,9 +152,9 @@ enum Type get_type(char c) {
                 case '/':
                         return OP_DIV;
                 case '(':
-                        return OPEN_PARENTHESIS;
+                        return OPEN_PARENT;
                 case ')':
-                        return CLOSE_PARENTHESIS;
+                        return CLOSE_PARENT;
                 case '?':
                         return LIMIT;
                 case '0': case '1': case '2': case '3': case '4':
@@ -188,8 +191,8 @@ bool is_operator(enum Type t)
                 case OP_MUL:
                 case OP_DIV:
                         return true;
-                case OPEN_PARENTHESIS:
-                case CLOSE_PARENTHESIS:
+                case OPEN_PARENT:
+                case CLOSE_PARENT:
                 case LIMIT:
                 case NUMBER:
                 case UNKNOWN:
@@ -197,12 +200,4 @@ bool is_operator(enum Type t)
                 default:
                         return false;
         }
-}
-
-bool is_parenthesis(enum Type t)
-{
-        if (t == OPEN_PARENTHESIS || t == CLOSE_PARENTHESIS)
-                return true;
-
-        return false;
 }

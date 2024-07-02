@@ -5,14 +5,17 @@
 
 enum Type
 {
+        UNARY_NEG,
+        UNARY_POS,
         OP_ADD,
         OP_SUB,
         OP_MUL,
         OP_DIV,
-        OPEN_PARENTHESIS,
-        CLOSE_PARENTHESIS,
+        OPEN_PARENT,
+        CLOSE_PARENT,
         LIMIT,
         NUMBER,
+        UNARY,
         UNKNOWN
 };
 
@@ -58,11 +61,10 @@ void    calc_log(char *message, const char *function, int line);
 void    calc_cleanup();
 void    add_token(char *str, enum Type type, enum Bp bp);
 void    debug_tokens(struct Lexer *tokens);
-struct  Token *next();
+struct  Token *get_next();
 struct  Token *peek();
 void    free_tree(struct Leaf *tree);
 bool    is_operator(enum Type t);
-bool    is_parenthesis(enum Type t);
 enum    Type get_type(char c);
 enum    Bp get_bp(char c);
 
