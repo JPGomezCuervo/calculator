@@ -17,6 +17,7 @@ size_t input_len = 0;
 //TODO: Define error codes
 //TODO: Handle errors when input empty
 //TODO: Check errors before entry to the functions
+//TODO: Add continuous mode when no args are passed, big while
 
 
 int main(int argsc, char **argsv)
@@ -54,66 +55,67 @@ int main(int argsc, char **argsv)
         input[input_len] = (char) DELIMITER;
         input[++input_len] = '\0';
 
+        char temp[TEMP_STR];
+        temp[TEMP_STR - 1] = '\0';
+        int pos = 0;
+        bool was_number = false;
 
+
+        for (size_t i = 0; i < input_len; i++) 
         {
-                char temp[TEMP_STR];
-                temp[TEMP_STR - 1] = '\0';
-                int pos = 0;
-                bool was_number = false;
+                char c = input[i];
+                enum Type t = get_type(c);
+                enum Bp bp = get_bp(c);
 
-
-                for (size_t i = 0; i < input_len; i++) 
+                /* Handle prefix */
+                if (i == 0 && (is_operator(t) || is_parenthesis(t))) 
                 {
-                        char c = input[i];
-                        enum Type t = get_type(c);
-                        enum Bp bp = get_bp(c);
+                        if (c == '-')
+                                t = UNARY_NEG;
 
-                        /* Handle prefix */
-                        if (i == 0 && (is_operator(t) || is_parenthesis(t))) 
-                        {
-                                if (c == '-')
-                                        t = UNARY_NEG;
+                        if (c == '+')
+                                t = UNARY_POS;
 
-                                if (c == '+')
-                                        t = UNARY_POS;
+                        if (c == '(')
+                                t = OPEN_PARENT;
 
-                                temp[0] = c;
-                                add_token(temp, t, bp);
-                                continue;
-                        }
+                        if (c == ')')
+                                t = CLOSE_PARENT;
 
-                        /* Store char into a buffer until another operator is found */
-                        if (isdigit(c))
-                                handle_number(&was_number, temp, &pos, c);
-
-                        if (is_operator(t) || is_parenthesis(t))
-                        {
-                                if (was_number)
-                                        handle_number_end(&was_number, temp, &pos);
-
-                                temp[0] = c;
-                                add_token(temp, t, bp);
-                        }
-                        if (t == LIMIT)
-                        {
-                                if (was_number)
-                                {
-                                        temp[pos] = '\0';
-                                        handle_number_end(&was_number, temp, &pos);
-                                }
-                        }
+                        temp[0] = c;
+                        add_token(temp, t, bp);
+                        continue;
                 }
 
+                /* Store char into a buffer until another operator is found */
+                if (isdigit(c))
+                        handle_number(&was_number, temp, &pos, c);
+
+                if (is_operator(t) || is_parenthesis(t))
+                {
+                        if (was_number)
+                                handle_number_end(&was_number, temp, &pos);
+
+                        temp[0] = c;
+                        add_token(temp, t, bp);
+                }
+                if (t == LIMIT)
+                {
+                        if (was_number)
+                        {
+                                temp[pos] = '\0';
+                                handle_number_end(&was_number, temp, &pos);
+                        }
+                }
         }
 
-        debug_tokens(tokens);
+
+        // debug_tokens(tokens);
         tree = parse_expr(MIN_LIMIT);
+        // debug_tree(tree, "");
 
         if (tree != NULL)
-        {
-                debug_tree(tree, "");
                 printf("result: %.2f\n", eval_tree(tree));
-        }
 
         return 0;
 }

@@ -69,7 +69,7 @@ void add_token(char *str, enum Type t, enum Bp bp)
 {
     struct Token tk;
 
-    if (is_operator(t) || is_operator(t) || t == UNARY_NEG || t == UNARY_POS)
+    if (is_operator(t) || is_parenthesis(t) || t == UNARY_NEG || t == UNARY_POS)
     {
             tk.val = calc_calloc(2, sizeof(char));
             tk.val[0] = str[0];
