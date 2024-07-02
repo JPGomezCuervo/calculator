@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 void *calc_malloc(size_t len)
 {
@@ -64,18 +65,17 @@ void calc_cleanup()
                 free_tree(tree);
 }
 
-void add_token(char *str, enum Type type, enum Bp bp)
+void add_token(char *str, enum Type t, enum Bp bp)
 {
     struct Token tk;
-    // TODO: handle errors and numbers
 
-    if (is_operator(type) || type == UNARY_NEG || type == UNARY_POS || type == OPEN_PARENT || CLOSE_PARENT)
+    if (is_operator(t) || is_operator(t) || t == UNARY_NEG || t == UNARY_POS)
     {
             tk.val = calc_calloc(2, sizeof(char));
             tk.val[0] = str[0];
             tk.val[1] = '\0';
             tk.bp = bp;
-            tk.type = type;
+            tk.type = t;
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
     }
@@ -111,6 +111,21 @@ struct Token *peek()
                 return &tokens->tokens[tokens->curr];
         }
         return NULL;
+}
+
+void handle_number(bool *was_number, char *temp, int *pos, char c)
+{
+        *was_number = true;
+        temp[*pos] = c;
+        *pos += 1;
+}
+
+void handle_number_end(bool *was_number, char *temp, int *pos)
+{
+        *was_number = false;
+        temp[*pos] = '\0';
+        add_token(temp, NUMBER, BP_NUMBER);
+        *pos = 0;
 }
 
 void debug_tokens(struct Lexer *tokens)
@@ -202,5 +217,172 @@ bool is_operator(enum Type t)
                         return false;
                 default:
                         return false;
+        }
+}
+
+bool is_parenthesis(enum Type t)
+{
+        return (t == OPEN_PARENT || t == CLOSE_PARENT);
+}
+
+void debug_tree(struct Leaf *leaf, const char *indent)
+{
+        if (leaf == NULL)
+        {
+                return;
+        }
+
+        printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
+
+        if (leaf->left)
+        {
+                printf("%sLeft:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->left, new_indent);
+        }
+
+        if (leaf->right)
+        {
+                printf("%sRight:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->right, new_indent);
+        }
+}
+
+struct Leaf *make_leaf(struct Token *tk)
+{
+        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        leaf->value = tk;
+        leaf->left = NULL;
+        leaf->right = NULL;
+        return leaf;
+}
+struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *right)
+{
+        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        leaf->value = op;
+        leaf->left = left;
+        leaf->right = right;
+
+        return leaf;
+}
+
+struct Leaf *parse_leaf()
+{
+        struct Token *tk = get_next();
+        struct Leaf *leaf = NULL;
+
+        if (tk->type == UNARY_NEG)
+        {
+                struct Leaf *right = parse_leaf(); 
+                leaf = make_leaf(tk);
+                leaf->right = right;
+        }
+        else if (tk->type == OPEN_PARENT)
+        {
+                leaf = parse_expr(MIN_LIMIT);
+                /* consumes close parenthesis */
+                get_next(); 
+        }
+        else 
+        {
+                leaf = make_leaf(tk);
+        }
+                
+        return leaf;
+}
+
+struct Leaf *parse_expr(enum Bp bp)
+{
+        struct Leaf *left = parse_leaf();
+        struct Leaf *node = NULL;
+
+        while (true)
+        {
+                node = increasing_prec(left, bp);
+
+                if (left == node)
+                        break;
+                left = node;
+        }
+        return left;
+}
+
+struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
+{
+        struct Token *next = NULL;
+        next = peek();
+
+
+        if (next == NULL || next->type == CLOSE_PARENT)
+                return left;
+
+        if (is_operator(next->type))
+        {
+                while (next->bp >= min_bp) 
+                {
+                        struct Token *op = get_next();
+                        struct Leaf *right = parse_expr(op->bp);
+                        left = make_binary_expr(op,left, right);
+
+                        next = peek();
+
+                        if (next == NULL || next->type == CLOSE_PARENT)
+                                break;
+                }
+        }
+        return left;
+}
+
+float eval_tree(struct Leaf *tree)
+{
+        assert(tree != NULL);
+        assert(tree->value != NULL);
+
+        float lhs = 0.0, rhs = 0.0;
+
+        if (tree->value->type == NUMBER) 
+                return strtof(tree->value->val, NULL);
+
+
+        if (tree->left == NULL)
+                lhs = 0;
+        else
+                lhs = eval_tree(tree->left);
+
+
+        if (tree->right == NULL)
+                rhs = 0;
+        else
+                rhs = eval_tree(tree->right);
+
+
+        switch (tree->value->type) 
+        {
+                case OP_ADD:
+                        return lhs + rhs;
+                case OP_SUB:
+                        return lhs - rhs;
+                case OP_MUL:
+                        return lhs * rhs;
+                case OP_DIV:
+                        if (rhs == 0) {
+                                fprintf(stderr, "Error: Division by zero\n");
+                                exit(EXIT_FAILURE);
+                        }
+                        return lhs / rhs;
+                case OPEN_PARENT: 
+                case CLOSE_PARENT: 
+                case LIMIT: 
+                case NUMBER:
+                        fprintf(stderr, "Error: invalid operator %s\n", tree->value->val);
+                        exit(EXIT_FAILURE);
+                case UNARY_NEG:
+                        return -rhs;
+                default:
+                        fprintf(stderr, "Error: unknown operator %s\n", tree->value->val);
+                        exit(EXIT_FAILURE);
         }
 }

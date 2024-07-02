@@ -15,7 +15,6 @@ enum Type
         CLOSE_PARENT,
         LIMIT,
         NUMBER,
-        UNARY,
         UNKNOWN
 };
 
@@ -67,5 +66,14 @@ void    free_tree(struct Leaf *tree);
 bool    is_operator(enum Type t);
 enum    Type get_type(char c);
 enum    Bp get_bp(char c);
+bool    is_parenthesis(enum Type t);
+void    handle_number(bool *was_number, char *temp, int *pos, char c);
+void    handle_number_end(bool *was_number, char *temp, int *pos);
+void    debug_tree(struct Leaf *leaf, const char *indent);
+struct  Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp);
+struct  Leaf *parse_leaf();
+struct  Leaf *make_leaf(struct Token *tk);
+float   eval_tree(struct Leaf *tree);
+struct  Leaf *parse_expr(enum Bp bp);
 
 #endif
