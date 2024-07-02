@@ -89,7 +89,7 @@ int main(int argsc, char **argsv)
                 }
 
                 /* Store char into a buffer until another operator is found */
-                if (isdigit(c))
+                if (isdigit(c) || c == '.')
                         handle_number(&was_number, temp, &pos, c);
 
                 if (is_operator(t) || is_parenthesis(t))
