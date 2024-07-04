@@ -5,7 +5,6 @@
 #include <string.h>
 #include "calc.h"
 
-#define BUFF_SIZE 101
 #define DELIMITER '?'
 #define TEMP_STR 51
 
@@ -19,18 +18,13 @@ size_t input_len = 0;
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
 //TODO: Find a way to not creating too avoid tokens, just allocate nodes
+//TODO: Remove enums and start using chars
+//TODO: Stop using a buff size constant and use dynamic memory allocation
 
 
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
-
-        tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->len = 0;
-        tokens->tokens = calc_calloc(BUFF_SIZE, sizeof(struct Token));
-
-        input = calc_calloc(BUFF_SIZE, sizeof(char));
-
 
         if (argsc < 2)
         {
@@ -40,21 +34,37 @@ int main(int argsc, char **argsv)
 
 
         /* Joins all args into one string */
-        if (argsc > 1)
+
+        for (int i = 1; i < argsc; i++)
+                input_len += strlen(argsv[i]);
+
+        input = calc_malloc(sizeof(char) * (input_len + 1));
+
         {
+                int input_index = 0;
+
                 for (int i = 1; i < argsc; i++)
                 {
-                        for (size_t j = 0; j < strlen(argsv[i]); j++) 
+                        char *psrc = argsv[i];
+
+                        while (*psrc != '\0')
                         {
-                                if (!isspace(argsv[i][j]))
-                                        strncat(input, &argsv[i][j], 1);
+                                if (!isspace(*psrc))
+                                        input[input_index++] = *psrc;
+                                psrc++;
                         }
                 }
-        } 
 
-        input_len = strlen(input);
-        input[input_len] = (char) DELIMITER;
-        input[++input_len] = '\0';
+                input[input_index++] = DELIMITER;
+                input[input_index] = '\0';
+                input_len = input_index;
+
+                input = realloc(input, sizeof(char) * (input_index + 1));
+        }
+
+        tokens = calc_malloc(sizeof(struct Lexer));
+        tokens->len = 0;
+        tokens->tokens = calc_calloc(input_len, sizeof(struct Token));
 
         char temp[TEMP_STR];
         temp[TEMP_STR - 1] = '\0';
