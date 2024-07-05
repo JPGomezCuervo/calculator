@@ -5,7 +5,6 @@
 #include <string.h>
 #include "calc.h"
 
-#define DELIMITER '?'
 #define TEMP_STR 51
 
 struct Lexer *tokens = NULL;  
@@ -17,9 +16,6 @@ size_t input_len = 0;
 //TODO: Handle errors when input empty
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
-//TODO: Find a way to not creating too avoid tokens, just allocate nodes
-//TODO: Remove enums and start using chars
-//TODO: Stop using a buff size constant and use dynamic memory allocation
 
 
 int main(int argsc, char **argsv)
@@ -59,65 +55,24 @@ int main(int argsc, char **argsv)
                 input[input_index] = '\0';
                 input_len = input_index;
 
-                input = realloc(input, sizeof(char) * (input_index + 1));
+                input = calc_realloc(input, sizeof(char) * (input_index + 1));
         }
 
         tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->len = 0;
-        tokens->tokens = calc_calloc(input_len, sizeof(struct Token));
+        tokens->len = input_len;
+        tokens->chars = calc_malloc(sizeof(char*) * input_len);
 
-        char temp[TEMP_STR];
-        temp[TEMP_STR - 1] = '\0';
-        int pos = 0;
-        bool was_number = false;
-
-
-        for (size_t i = 0; i < input_len; i++) 
         {
-                char c = input[i];
-                enum Type t = get_type(c);
-                enum Bp bp = get_bp(c);
-
-                /* Handle prefix */
-                if (i == 0 && (is_operator(t) || is_parenthesis(t))) 
+                size_t char_pos = 0;
+                for (size_t i = 0; i < input_len; i++)
                 {
-                        if (c == '-')
-                                t = UNARY_NEG;
-
-                        if (c == '+')
-                                t = UNARY_POS;
-
-                        if (c == '(')
-                                t = OPEN_PARENT;
-
-                        if (c == ')')
-                                t = CLOSE_PARENT;
-
-                        temp[0] = c;
-                        add_token(temp, t, bp);
-                        continue;
+                        enum Type t = get_type(input[i]);
+                        add_token(tokens, input, &i, t, input_len, char_pos);
+                        char_pos++;
                 }
-
-                /* Store char into a buffer until another operator is found */
-                if (isdigit(c) || c == '.')
-                        handle_number(&was_number, temp, &pos, c);
-
-                if (is_operator(t) || is_parenthesis(t))
-                {
-                        if (was_number)
-                                handle_number_end(&was_number, temp, &pos);
-
-                        temp[0] = c;
-                        add_token(temp, t, bp);
-                }
-                if (t == LIMIT)
-                {
-                        if (was_number)
-                        {
-                                temp[pos] = '\0';
-                                handle_number_end(&was_number, temp, &pos);
-                        }
-                }
+                tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * char_pos);
+                tokens->len = char_pos;
+                tokens->curr = 0;
         }
 
         tree = parse_expr(MIN_LIMIT);

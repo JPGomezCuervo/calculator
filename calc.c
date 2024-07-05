@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <ctype.h>
 
 void *calc_malloc(size_t len)
 {
@@ -31,6 +32,18 @@ void *calc_calloc(int num, size_t size)
     return p;
 }
 
+void *calc_realloc(void *p, size_t new_size)
+{
+    p = realloc(p, new_size);
+
+    if (!p) {
+        calc_log("Error in reallocation", __func__, __LINE__);
+        exit(EXIT_FAILURE);
+    }
+
+    return p;
+}
+
 void calc_log(char *message, const char *function, int line)
 {
         printf("%s at %s::line %d", message, function, line);
@@ -51,9 +64,8 @@ void calc_cleanup()
         if (tokens) 
         {
                 for (size_t i = 0; i < tokens->len; i++)
-                        free(tokens->tokens[i].val);
+                        free(tokens->chars[i]);
 
-                free(tokens->tokens);
                 free(tokens);
         }
 
@@ -65,67 +77,60 @@ void calc_cleanup()
                 free_tree(tree);
 }
 
-void add_token(char *str, enum Type t, enum Bp bp)
+void add_token(struct Lexer *tokens, const char *input, size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
 {
-    struct Token tk;
 
-    if (is_operator(t) || is_parenthesis(t) || t == UNARY_NEG || t == UNARY_POS)
-    {
-            tk.val = calc_calloc(2, sizeof(char));
-            tk.val[0] = str[0];
-            tk.val[1] = '\0';
-            tk.bp = bp;
-            tk.type = t;
-            tokens->tokens[tokens->len] = tk;
-            tokens->len++;
-    }
-    else 
-    {
-            tk.val = calc_calloc(strlen(str) + 1, sizeof(char));
-            strcpy(tk.val, str);
-            tk.type = NUMBER;
-            tk.bp = BP_NUMBER;
-            tokens->tokens[tokens->len] = tk;
-            tokens->len++;
-    }
+        if (t == NUMBER)
+        {
+                size_t j = 0;
+
+                char *str = calc_malloc((input_len - tokens_pos + 1) * sizeof(char));
+
+                while (isdigit(input[*i]) && *i < input_len) 
+                {
+                        str[j] = input[*i];
+                        j++;
+                        (*i)++;
+                }
+
+                str[j] = '\0';
+                str = calc_realloc(str, sizeof(char) * j);
+
+                tokens->chars[tokens_pos] = str;
+                (*i)--;  // Adjust index since the for loop will increment i
+        }
+        else
+        {
+
+                tokens->chars[tokens_pos] = calc_malloc(2 * sizeof(char));
+                tokens->chars[tokens_pos][0] = input[*i];
+                tokens->chars[tokens_pos][1] = '\0';
+        }
 }
 
-struct Token *get_next()
+char *get_next()
 {
-        struct Token *ptk = NULL;
+        assert(tokens != NULL);
 
-        if (tokens && tokens->curr < tokens->len)
+        char *pc = NULL;
+
+        if (tokens->curr != DELIMITER)
         {
-                ptk = &tokens->tokens[tokens->curr];
+                pc = tokens->chars[tokens->curr];
                 tokens->curr++;
         }
 
-        return ptk;
+        return pc;
 }
 
-struct Token *peek()
+char *peek()
 {
+        assert(tokens != NULL);
 
-        if (tokens->curr < tokens->len)
-        {
-                return &tokens->tokens[tokens->curr];
-        }
+        if (tokens->curr != DELIMITER)
+                return tokens->chars[tokens->curr];
+
         return NULL;
-}
-
-void handle_number(bool *was_number, char *temp, int *pos, char c)
-{
-        *was_number = true;
-        temp[*pos] = c;
-        *pos += 1;
-}
-
-void handle_number_end(bool *was_number, char *temp, int *pos)
-{
-        *was_number = false;
-        temp[*pos] = '\0';
-        add_token(temp, NUMBER, BP_NUMBER);
-        *pos = 0;
 }
 
 void debug_tokens(struct Lexer *tokens)
@@ -148,16 +153,18 @@ void debug_tokens(struct Lexer *tokens)
     {
         printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
                 i, 
-                tokens->tokens[i].val,
-                lookup_t[tokens->tokens[i].type],
-                tokens->tokens[i].bp
+                &tokens->chars[i][0],
+                lookup_t[get_type(tokens->chars[i][0])],
+                get_bp(tokens->chars[i][0])
               );
     }
 }
 
-enum Type get_type(char c) {
+enum Type get_type(char c) 
+{
 
-        switch (c) {
+        switch (c) 
+        {
                 case '+':
                         return OP_ADD;
                 case '-':
@@ -180,9 +187,11 @@ enum Type get_type(char c) {
         }
 }
 
-enum Bp get_bp(char c) {
+enum Bp get_bp(char c) 
+{
 
-        switch (c) {
+        switch (c) 
+        {
                 case ')':
                 case '(':
                         return MIN_LIMIT;
@@ -228,11 +237,9 @@ bool is_parenthesis(enum Type t)
 void debug_tree(struct Leaf *leaf, const char *indent)
 {
         if (leaf == NULL)
-        {
                 return;
-        }
 
-        printf("%sHead: %s\n", indent, leaf->value ? leaf->value->val : "NULL");
+        printf("%sHead: %s\n", indent, leaf->value ? leaf->value : "NULL");
 
         if (leaf->left)
         {
@@ -251,7 +258,7 @@ void debug_tree(struct Leaf *leaf, const char *indent)
         }
 }
 
-struct Leaf *make_leaf(struct Token *tk)
+struct Leaf *make_leaf(char *tk)
 {
         struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
         leaf->value = tk;
@@ -259,7 +266,7 @@ struct Leaf *make_leaf(struct Token *tk)
         leaf->right = NULL;
         return leaf;
 }
-struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *right)
+struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
 {
         struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
         leaf->value = op;
@@ -271,16 +278,17 @@ struct Leaf *make_binary_expr(struct Token *op, struct Leaf *left, struct Leaf *
 
 struct Leaf *parse_leaf()
 {
-        struct Token *tk = get_next();
+        char *tk = get_next();
         struct Leaf *leaf = NULL;
+        enum Type t = get_type(*tk);
 
-        if (tk->type == UNARY_NEG)
+        if (t == OP_ADD || t == OP_SUB)
         {
                 struct Leaf *right = parse_leaf(); 
                 leaf = make_leaf(tk);
                 leaf->right = right;
         }
-        else if (tk->type == OPEN_PARENT)
+        else if (t == OPEN_PARENT)
         {
                 leaf = parse_expr(MIN_LIMIT);
                 /* consumes close parenthesis */
@@ -312,24 +320,26 @@ struct Leaf *parse_expr(enum Bp bp)
 
 struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
 {
-        struct Token *next = NULL;
-        next = peek();
+        char *next = peek();
+        enum Type t = get_type(*next);
+        enum Bp bp = get_bp(*next);
 
 
-        if (next == NULL || next->type == CLOSE_PARENT)
+        if (*next == DELIMITER || t == CLOSE_PARENT)
                 return left;
 
-        if (is_operator(next->type))
+        if (is_operator(t))
         {
-                while (next->bp >= min_bp) 
+                while (bp >= min_bp) 
                 {
-                        struct Token *op = get_next();
-                        struct Leaf *right = parse_expr(op->bp);
+                        char *op = get_next();
+                        struct Leaf *right = parse_expr(bp);
                         left = make_binary_expr(op,left, right);
 
                         next = peek();
+                        t = get_type(*next);
 
-                        if (next == NULL || next->type == CLOSE_PARENT)
+                        if (*next == DELIMITER || t == CLOSE_PARENT)
                                 break;
                 }
         }
@@ -342,9 +352,10 @@ float eval_tree(struct Leaf *tree)
         assert(tree->value != NULL);
 
         float lhs = 0.0, rhs = 0.0;
+        enum Type t = get_type(*tree->value);
 
-        if (tree->value->type == NUMBER) 
-                return strtof(tree->value->val, NULL);
+        if (t == NUMBER) 
+                return strtof(tree->value, NULL);
 
 
         if (tree->left == NULL)
@@ -359,7 +370,7 @@ float eval_tree(struct Leaf *tree)
                 rhs = eval_tree(tree->right);
 
 
-        switch (tree->value->type) 
+        switch (t) 
         {
                 case OP_ADD:
                         return lhs + rhs;
@@ -377,12 +388,12 @@ float eval_tree(struct Leaf *tree)
                 case CLOSE_PARENT: 
                 case LIMIT: 
                 case NUMBER:
-                        fprintf(stderr, "Error: invalid operator %s\n", tree->value->val);
+                        fprintf(stderr, "Error: invalid operator %s\n", tree->value);
                         exit(EXIT_FAILURE);
                 case UNARY_NEG:
                         return -rhs;
                 default:
-                        fprintf(stderr, "Error: unknown operator %s\n", tree->value->val);
+                        fprintf(stderr, "Error: unknown operator %s\n", tree->value);
                         exit(EXIT_FAILURE);
         }
 }
