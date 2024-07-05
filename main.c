@@ -15,8 +15,8 @@ size_t input_len = 0;
 //TODO: Handle errors when input empty
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
+//TODO: Think how handle integer, floats and doubles
 
-void dead(enum Calc_err err);
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);

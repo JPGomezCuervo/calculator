@@ -80,7 +80,7 @@ void    debug_tree(struct Leaf *leaf, const char *indent);
 struct  Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp);
 struct  Leaf *parse_leaf();
 struct  Leaf *make_leaf(char *tk);
-float   eval_tree(struct Leaf *tree);
+double   eval_tree(struct Leaf *tree);
 void    dead(enum Calc_err err);
 
 #endif

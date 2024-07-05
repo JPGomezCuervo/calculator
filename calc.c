@@ -351,16 +351,16 @@ struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
         return left;
 }
 
-float eval_tree(struct Leaf *tree)
+double eval_tree(struct Leaf *tree)
 {
         assert(tree != NULL);
         assert(tree->value != NULL);
 
-        float lhs = 0.0, rhs = 0.0;
+        double lhs = 0.0, rhs = 0.0;
         enum Type t = get_type(*tree->value);
 
         if (t == NUMBER) 
-                return strtof(tree->value, NULL);
+                return strtod(tree->value, NULL);
 
 
         lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
