@@ -21,41 +21,40 @@ const char *type_names[] = {
 
 void *calc_malloc(size_t len)
 {
-    void *p = NULL;
-    p = malloc(len);
+        void *p = NULL;
+        p = malloc(len);
 
-    if (!p) {
-        calc_log("Error in allocation", __func__, __LINE__);
-        exit(EXIT_FAILURE);
-    }
+        if (!p) {
+                calc_log("Error in allocation", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+        }
 
-    memset(p, 0, len); 
-    return p;
+        return p;
 }
 
 void *calc_calloc(int num, size_t size)
 {
-    void *p = NULL;
-    p = calloc(num, size);
+        void *p = NULL;
+        p = calloc(num, size);
 
-    if (!p) {
-        calc_log("Error in allocation", __func__, __LINE__);
-        exit(EXIT_FAILURE);
-    }
+        if (!p) {
+                calc_log("Error in allocation", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+        }
 
-    return p;
+        return p;
 }
 
 void *calc_realloc(void *p, size_t new_size)
 {
-    p = realloc(p, new_size);
+        p = realloc(p, new_size);
 
-    if (!p) {
-        calc_log("Error in reallocation", __func__, __LINE__);
-        exit(EXIT_FAILURE);
-    }
+        if (!p) {
+                calc_log("Error in reallocation", __func__, __LINE__);
+                exit(EXIT_FAILURE);
+        }
 
-    return p;
+        return p;
 }
 
 void calc_log(char *message, const char *function, int line)
@@ -77,7 +76,8 @@ void calc_cleanup()
 {
         if (tokens) 
         {
-                for (size_t i = 0; i < tokens->len; i++)
+                /*Reverse loop to take advantage of the Zero Flag cpu optmization*/
+                for (int i = (int)tokens->len - 1; i >= 0; i--)
                         free(tokens->chars[i]);
 
                 free(tokens->chars);
@@ -92,38 +92,38 @@ void calc_cleanup()
                 free_tree(tree);
 }
 
-void add_token(struct Lexer *tokens, const char *input, size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
+void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
 {
-    if (t == NUMBER)
-    {
-        size_t size = 0;
-        const char *p_input = &input[*i];
-
-        while (isdigit(*p_input) && *i < input_len)
+        if (t == NUMBER)
         {
-            size++;
-            p_input++;
+                size_t size = 0;
+                const char *p_input = &input[*i];
+
+                while (isdigit(*p_input) && *i < input_len)
+                {
+                        size++;
+                        p_input++;
+                }
+
+                char *str = calc_malloc(sizeof(char) * (size + 1));
+
+                for (size_t j = 0; j < size; j++)
+                {
+                        str[j] = input[*i];
+                        (*i)++;
+                }
+
+                str[size] = '\0';
+
+                tokens->chars[tokens_pos] = str;
+                (*i)--;  // Adjust index since the loop will increment i once more
         }
-
-        char *str = calc_malloc(sizeof(char) * (size + 1));
-
-        for (size_t j = 0; j < size; j++)
+        else
         {
-                str[j] = input[*i];
-                (*i)++;
+                tokens->chars[tokens_pos] = calc_malloc(sizeof(char) * 2);
+                tokens->chars[tokens_pos][0] = input[*i];
+                tokens->chars[tokens_pos][1] = '\0';
         }
-
-        str[size] = '\0';
-
-        tokens->chars[tokens_pos] = str;
-        (*i)--;  // Adjust index since the loop will increment i once more
-    }
-    else
-    {
-        tokens->chars[tokens_pos] = calc_malloc(2 * sizeof(char));
-        tokens->chars[tokens_pos][0] = input[*i];
-        tokens->chars[tokens_pos][1] = '\0';
-    }
 }
 
 char *get_next()
@@ -141,7 +141,7 @@ char *get_next()
         return pc;
 }
 
-inline char peek()
+char peek()
 {
         assert(tokens != NULL);
 
@@ -153,15 +153,15 @@ inline char peek()
 
 void debug_tokens(struct Lexer *tokens)
 {
-    for (size_t i = 0; i < tokens->len; i++)
-    {
-        printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
-                i, 
-                &tokens->chars[i][0],
-                type_names[get_type(tokens->chars[i][0])],
-                get_bp(tokens->chars[i][0])
-              );
-    }
+        for (size_t i = 0; i < tokens->len; i++)
+        {
+                printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
+                                i, 
+                                &tokens->chars[i][0],
+                                type_names[get_type(tokens->chars[i][0])],
+                                get_bp(tokens->chars[i][0])
+                      );
+        }
 }
 
 enum Type get_type(char c) 
@@ -222,18 +222,12 @@ bool is_operator(enum Type t)
                 case OP_MUL:
                 case OP_DIV:
                         return true;
-                case OPEN_PARENT:
-                case CLOSE_PARENT:
-                case LIMIT:
-                case NUMBER:
-                case UNKNOWN:
-                        return false;
                 default:
                         return false;
         }
 }
 
-inline bool is_parenthesis(enum Type t)
+bool is_parenthesis(enum Type t)
 {
         return (t == OPEN_PARENT || t == CLOSE_PARENT);
 }
@@ -303,7 +297,7 @@ struct Leaf *parse_leaf()
         {
                 leaf = make_leaf(tk);
         }
-                
+
         return leaf;
 }
 
@@ -340,7 +334,6 @@ struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
                         char *op = get_next();
                         struct Leaf *right = parse_expr(bp);
                         left = make_binary_expr(op,left, right);
-
                         next = peek();
                         t = get_type(next);
 

@@ -6,8 +6,6 @@
 #include "calc.h"
 #include <time.h>
 
-#define TEMP_STR 51
-
 struct Lexer *tokens = NULL;  
 struct Leaf *tree = NULL;
 char *input = NULL;           
@@ -40,7 +38,8 @@ int main(int argsc, char **argsv)
                 input_len += strlen(argsv[i]);
 
 
-        input = calc_malloc(sizeof(char) * (input_len + 1));
+        /* null char and delimiter*/
+        input = calc_malloc(sizeof(char) * (input_len + 2));
 
         {
                 int input_index = 0;
@@ -69,15 +68,15 @@ int main(int argsc, char **argsv)
         tokens->chars = calc_malloc(sizeof(char*) * input_len);
 
 
-        size_t char_pos = 0;
+        size_t chars_pos = 0;
         for (size_t i = 0; i < input_len; i++)
         {
                 enum Type t = get_type(input[i]);
-                add_token(tokens, input, &i, t, input_len, char_pos);
-                char_pos++;
+                add_token(&i, t, input_len, chars_pos);
+                chars_pos++;
         }
-        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * char_pos);
-        tokens->len = char_pos;
+        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * chars_pos);
+        tokens->len = chars_pos;
         tokens->curr = 0;
 
 
@@ -85,7 +84,6 @@ int main(int argsc, char **argsv)
 
         if (tree != NULL)
                 printf("%.2f\n", eval_tree(tree));
-
 
         end = clock();
         cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
