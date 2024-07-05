@@ -121,7 +121,6 @@ void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos)
                 }
 
                 str[size] = '\0';
-
                 tokens->chars[tokens_pos] = str;
                 (*i)--;  // Adjust index since the loop will increment i once more
         }
@@ -138,7 +137,6 @@ char *get_next()
         assert(tokens != NULL);
 
         char *pc = NULL;
-
         if (*tokens->chars[tokens->curr] != DELIMITER)
         {
                 pc = tokens->chars[tokens->curr];
@@ -285,7 +283,6 @@ struct Leaf *parse_leaf()
 {
         char *tk = get_next();
         struct Leaf *leaf = NULL;
-        // assert(tk != NULL);
         enum Type t = get_type(*tk);
 
         if (t == OP_ADD || t == OP_SUB)

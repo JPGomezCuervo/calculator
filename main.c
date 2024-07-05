@@ -11,20 +11,12 @@ struct Leaf *tree = NULL;
 char *input = NULL;           
 size_t input_len = 0; 
 
-//TODO: Define error codes
-//TODO: Handle errors when input empty
-//TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
 //TODO: Think how handle integer, floats and doubles
 
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
-
-        clock_t start, end;
-        double cpu_time_used;
-
-        start = clock();
 
         if (argsc < 2)
         {
@@ -34,35 +26,33 @@ int main(int argsc, char **argsv)
 
 
         /* Joins all args into one string */
-
         for (int i = 1; i < argsc; i++)
                 input_len += strlen(argsv[i]);
-
 
         /* 'input_len + 2' -> input_len + \0 + delimiter */
         input = calc_malloc(sizeof(char) * (input_len + 2));
 
+        int input_index = 0;
+        for (int i = 1; i < argsc; i++)
         {
-                int input_index = 0;
+                char *psrc = argsv[i];
 
-                for (int i = 1; i < argsc; i++)
+                while (*psrc != '\0')
                 {
-                        char *psrc = argsv[i];
+                        if (*psrc == DELIMITER)
+                                dead(ERR_UNKNOWN_OPERATOR);
 
-                        while (*psrc != '\0')
-                        {
-                                if (!isspace(*psrc))
-                                        input[input_index++] = *psrc;
-                                psrc++;
-                        }
+                        if (!isspace(*psrc))
+                                input[input_index++] = *psrc;
+                        psrc++;
                 }
-
-                input[input_index++] = DELIMITER;
-                input[input_index] = '\0';
-                input_len = input_index;
-
-                input = calc_realloc(input, sizeof(char) * (input_index + 1));
         }
+
+        input[input_index++] = DELIMITER;
+        input[input_index] = '\0';
+        input_len = input_index;
+
+        input = calc_realloc(input, sizeof(char) * (input_index + 1));
 
         tokens = calc_malloc(sizeof(struct Lexer));
         tokens->len = input_len;
@@ -85,10 +75,6 @@ int main(int argsc, char **argsv)
 
         if (tree != NULL)
                 printf("%.2f\n", eval_tree(tree));
-
-        end = clock();
-        cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-        printf("Tiempo de CPU usado: %f segundos\n", cpu_time_used);
 
         return 0;
 }
