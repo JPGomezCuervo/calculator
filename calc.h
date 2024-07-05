@@ -12,7 +12,8 @@ enum Calc_err
 {
         ERR_NO_INPUT,
         ERR_DIVIDE_BY_ZERO,
-        ERR_UNKNOWN_OPERATOR
+        ERR_UNKNOWN_OPERATOR,
+        ERR_SYNTAX,
 };
 
 enum Type
@@ -82,5 +83,6 @@ struct  Leaf *parse_leaf();
 struct  Leaf *make_leaf(char *tk);
 double   eval_tree(struct Leaf *tree);
 void    dead(enum Calc_err err);
+void    check_semantics(struct Leaf *tree, struct Leaf *parent);
 
 #endif

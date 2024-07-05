@@ -24,6 +24,7 @@ char *calc_err_msg [] =
         [ERR_NO_INPUT] = "no input provided",
         [ERR_DIVIDE_BY_ZERO] = "division by zero",
         [ERR_UNKNOWN_OPERATOR] = "unknown operator",
+        [ERR_SYNTAX] = "invalid syntax",
 };
 
 void *calc_malloc(size_t len)
@@ -44,7 +45,8 @@ void *calc_calloc(int num, size_t size)
         void *p = NULL;
         p = calloc(num, size);
 
-        if (!p) {
+        if (!p) 
+        {
                 calc_log("Error in allocation", __func__, __LINE__);
                 exit(EXIT_FAILURE);
         }
@@ -56,7 +58,8 @@ void *calc_realloc(void *p, size_t new_size)
 {
         p = realloc(p, new_size);
 
-        if (!p) {
+        if (!p)
+        {
                 calc_log("Error in reallocation", __func__, __LINE__);
                 exit(EXIT_FAILURE);
         }
@@ -283,6 +286,10 @@ struct Leaf *parse_leaf()
 {
         char *tk = get_next();
         struct Leaf *leaf = NULL;
+
+        if (tk == NULL)
+                return leaf;
+
         enum Type t = get_type(*tk);
 
         if (t == OP_ADD || t == OP_SUB)
@@ -393,4 +400,27 @@ void dead(enum Calc_err err)
         fprintf(stderr, "%s\n", calc_err_msg[err]);
 
         exit(err);
+}
+
+void check_semantics(struct Leaf *tree, struct Leaf *parent)
+{
+        assert(tree != NULL);
+        assert(tree->value != NULL);
+        enum Type curr_t = get_type(*tree->value);
+
+        if (parent != NULL)
+        {
+                enum Type paren_t = get_type(*parent->value);
+                if (is_operator(paren_t) == is_operator(curr_t))
+                        dead(ERR_SYNTAX);
+        }
+
+        if (is_operator(curr_t) && parent == NULL)
+                dead(ERR_SYNTAX);
+
+        if (tree->left != NULL)
+                check_semantics(tree->left, tree);
+
+        if (tree->right != NULL)
+                check_semantics(tree->right, tree);
 }

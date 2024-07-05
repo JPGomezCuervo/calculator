@@ -73,8 +73,10 @@ int main(int argsc, char **argsv)
 
         tree = parse_expr(MIN_LIMIT);
 
+        check_semantics(tree, NULL);
         if (tree != NULL)
                 printf("%.2f\n", eval_tree(tree));
 
         return 0;
 }
+
