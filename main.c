@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "calc.h"
+#include <time.h>
 
 #define TEMP_STR 51
 
@@ -17,10 +18,14 @@ size_t input_len = 0;
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
 
-
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
+
+        clock_t start, end;
+        double cpu_time_used;
+
+        start = clock();
 
         if (argsc < 2)
         {
@@ -33,6 +38,7 @@ int main(int argsc, char **argsv)
 
         for (int i = 1; i < argsc; i++)
                 input_len += strlen(argsv[i]);
+
 
         input = calc_malloc(sizeof(char) * (input_len + 1));
 
@@ -62,23 +68,28 @@ int main(int argsc, char **argsv)
         tokens->len = input_len;
         tokens->chars = calc_malloc(sizeof(char*) * input_len);
 
+
+        size_t char_pos = 0;
+        for (size_t i = 0; i < input_len; i++)
         {
-                size_t char_pos = 0;
-                for (size_t i = 0; i < input_len; i++)
-                {
-                        enum Type t = get_type(input[i]);
-                        add_token(tokens, input, &i, t, input_len, char_pos);
-                        char_pos++;
-                }
-                tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * char_pos);
-                tokens->len = char_pos;
-                tokens->curr = 0;
+                enum Type t = get_type(input[i]);
+                add_token(tokens, input, &i, t, input_len, char_pos);
+                char_pos++;
         }
+        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * char_pos);
+        tokens->len = char_pos;
+        tokens->curr = 0;
+
 
         tree = parse_expr(MIN_LIMIT);
 
         if (tree != NULL)
                 printf("%.2f\n", eval_tree(tree));
+
+
+        end = clock();
+        cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+        printf("Tiempo de CPU usado: %f segundos\n", cpu_time_used);
 
         return 0;
 }

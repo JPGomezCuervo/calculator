@@ -66,6 +66,7 @@ void calc_cleanup()
                 for (size_t i = 0; i < tokens->len; i++)
                         free(tokens->chars[i]);
 
+                free(tokens->chars);
                 free(tokens);
         }
 
@@ -79,33 +80,36 @@ void calc_cleanup()
 
 void add_token(struct Lexer *tokens, const char *input, size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
 {
+    if (t == NUMBER)
+    {
+        size_t size = 0;
+        const char *p_input = &input[*i];
 
-        if (t == NUMBER)
+        while (isdigit(*p_input) && *i < input_len)
         {
-                size_t j = 0;
-
-                char *str = calc_malloc((input_len - tokens_pos + 1) * sizeof(char));
-
-                while (isdigit(input[*i]) && *i < input_len) 
-                {
-                        str[j] = input[*i];
-                        j++;
-                        (*i)++;
-                }
-
-                str[j] = '\0';
-                str = calc_realloc(str, sizeof(char) * j);
-
-                tokens->chars[tokens_pos] = str;
-                (*i)--;  // Adjust index since the for loop will increment i
+            size++;
+            p_input++;
         }
-        else
+
+        char *str = calc_malloc(sizeof(char) * (size + 1));
+
+        for (size_t j = 0; j < size; j++)
         {
-
-                tokens->chars[tokens_pos] = calc_malloc(2 * sizeof(char));
-                tokens->chars[tokens_pos][0] = input[*i];
-                tokens->chars[tokens_pos][1] = '\0';
+                str[j] = input[*i];
+                (*i)++;
         }
+
+        str[size] = '\0';
+
+        tokens->chars[tokens_pos] = str;
+        (*i)--;  // Adjust index since the loop will increment i once more
+    }
+    else
+    {
+        tokens->chars[tokens_pos] = calc_malloc(2 * sizeof(char));
+        tokens->chars[tokens_pos][0] = input[*i];
+        tokens->chars[tokens_pos][1] = '\0';
+    }
 }
 
 char *get_next()
@@ -114,7 +118,7 @@ char *get_next()
 
         char *pc = NULL;
 
-        if (tokens->curr != DELIMITER)
+        if (*tokens->chars[tokens->curr] != DELIMITER)
         {
                 pc = tokens->chars[tokens->curr];
                 tokens->curr++;
@@ -123,14 +127,14 @@ char *get_next()
         return pc;
 }
 
-char *peek()
+inline char peek()
 {
         assert(tokens != NULL);
 
-        if (tokens->curr != DELIMITER)
-                return tokens->chars[tokens->curr];
+        if (*tokens->chars[tokens->curr] != DELIMITER)
+                return *tokens->chars[tokens->curr];
 
-        return NULL;
+        return DELIMITER;
 }
 
 void debug_tokens(struct Lexer *tokens)
@@ -229,7 +233,7 @@ bool is_operator(enum Type t)
         }
 }
 
-bool is_parenthesis(enum Type t)
+inline bool is_parenthesis(enum Type t)
 {
         return (t == OPEN_PARENT || t == CLOSE_PARENT);
 }
@@ -280,6 +284,7 @@ struct Leaf *parse_leaf()
 {
         char *tk = get_next();
         struct Leaf *leaf = NULL;
+        // assert(tk != NULL);
         enum Type t = get_type(*tk);
 
         if (t == OP_ADD || t == OP_SUB)
@@ -320,12 +325,12 @@ struct Leaf *parse_expr(enum Bp bp)
 
 struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
 {
-        char *next = peek();
-        enum Type t = get_type(*next);
-        enum Bp bp = get_bp(*next);
+        char next = peek();
+        enum Type t = get_type(next);
+        enum Bp bp = get_bp(next);
 
 
-        if (*next == DELIMITER || t == CLOSE_PARENT)
+        if (next == DELIMITER || t == CLOSE_PARENT)
                 return left;
 
         if (is_operator(t))
@@ -337,9 +342,9 @@ struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
                         left = make_binary_expr(op,left, right);
 
                         next = peek();
-                        t = get_type(*next);
+                        t = get_type(next);
 
-                        if (*next == DELIMITER || t == CLOSE_PARENT)
+                        if (next == DELIMITER || t == CLOSE_PARENT)
                                 break;
                 }
         }

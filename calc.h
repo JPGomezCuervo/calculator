@@ -57,7 +57,7 @@ void    calc_cleanup();
 void    add_token(struct Lexer *tokens, const char *input, size_t *i, enum Type t, size_t input_len, size_t tokens_pos);
 void    debug_tokens(struct Lexer *tokens);
 char    *get_next();
-char    *peek();
+char    peek();
 void    free_tree(struct Leaf *tree);
 bool    is_operator(enum Type t);
 enum    Type get_type(char c);
