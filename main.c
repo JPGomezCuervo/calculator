@@ -16,6 +16,7 @@ size_t input_len = 0;
 //TODO: Check errors before entry to the functions
 //TODO: Add continuous mode when no args are passed, big while
 
+void dead(enum Calc_err err);
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
@@ -28,7 +29,7 @@ int main(int argsc, char **argsv)
         if (argsc < 2)
         {
                 printf("USE: calc <expr>\n");
-                exit(1);
+                dead(ERR_NO_INPUT);
         }
 
 
@@ -38,7 +39,7 @@ int main(int argsc, char **argsv)
                 input_len += strlen(argsv[i]);
 
 
-        /* null char and delimiter*/
+        /* 'input_len + 2' -> input_len + \0 + delimiter */
         input = calc_malloc(sizeof(char) * (input_len + 2));
 
         {

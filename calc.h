@@ -6,6 +6,15 @@
 
 #define DELIMITER '?'
 
+/* error codes */
+
+enum Calc_err
+{
+        ERR_NO_INPUT,
+        ERR_DIVIDE_BY_ZERO,
+        ERR_UNKNOWN_OPERATOR
+};
+
 enum Type
 {
         UNARY_NEG,
@@ -72,5 +81,6 @@ struct  Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp);
 struct  Leaf *parse_leaf();
 struct  Leaf *make_leaf(char *tk);
 float   eval_tree(struct Leaf *tree);
+void    dead(enum Calc_err err);
 
 #endif

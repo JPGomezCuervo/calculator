@@ -19,6 +19,13 @@ const char *type_names[] = {
         [UNKNOWN] = "UNKNOWN"
 };
 
+char *calc_err_msg [] =
+{
+        [ERR_NO_INPUT] = "no input provided",
+        [ERR_DIVIDE_BY_ZERO] = "division by zero",
+        [ERR_UNKNOWN_OPERATOR] = "unknown operator",
+};
+
 void *calc_malloc(size_t len)
 {
         void *p = NULL;
@@ -356,16 +363,8 @@ float eval_tree(struct Leaf *tree)
                 return strtof(tree->value, NULL);
 
 
-        if (tree->left == NULL)
-                lhs = 0;
-        else
-                lhs = eval_tree(tree->left);
-
-
-        if (tree->right == NULL)
-                rhs = 0;
-        else
-                rhs = eval_tree(tree->right);
+        lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
+        rhs = tree->right != NULL ? eval_tree(tree->right) : 0;
 
 
         switch (t) 
@@ -377,21 +376,24 @@ float eval_tree(struct Leaf *tree)
                 case OP_MUL:
                         return lhs * rhs;
                 case OP_DIV:
-                        if (rhs == 0) {
-                                fprintf(stderr, "Error: Division by zero\n");
-                                exit(EXIT_FAILURE);
-                        }
+                        if (rhs == 0)
+                                dead(ERR_DIVIDE_BY_ZERO);
+
                         return lhs / rhs;
-                case OPEN_PARENT: 
-                case CLOSE_PARENT: 
-                case LIMIT: 
-                case NUMBER:
-                        fprintf(stderr, "Error: invalid operator %s\n", tree->value);
-                        exit(EXIT_FAILURE);
                 case UNARY_NEG:
                         return -rhs;
                 default:
-                        fprintf(stderr, "Error: unknown operator %s\n", tree->value);
-                        exit(EXIT_FAILURE);
+                        dead(ERR_UNKNOWN_OPERATOR);
+                        return 0.0;
         }
+}
+
+void dead(enum Calc_err err)
+{
+        assert(err >= 0);
+
+        fprintf(stderr, "ERROR: ");
+        fprintf(stderr, "%s\n", calc_err_msg[err]);
+
+        exit(err);
 }

@@ -1,6 +1,6 @@
 CC = gcc
 OP =  -o0
-FLAGS = -Wall -Wextra -pedantic -ggdb -pg
+FLAGS = -Wall -Wextra -pedantic -ggdb
 OBJECTS = main.o calc.o
 CFILES = main.c calc.c
 BINARY = calc
