@@ -419,5 +419,8 @@ void check_semantics()
                         if (is_operator(prev) && is_operator(curr_t))
                                 dead(ERR_SYNTAX);
                 }
+
+                if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
+                        dead(ERR_SYNTAX);
         }
 }
