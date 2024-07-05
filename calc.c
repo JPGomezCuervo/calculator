@@ -5,6 +5,20 @@
 #include <assert.h>
 #include <ctype.h>
 
+const char *type_names[] = {
+        [UNARY_NEG] = "UNARY_NEG",
+        [UNARY_POS] = "UNARY_POS",
+        [OP_ADD] = "OP_ADD",
+        [OP_SUB] = "OP_SUB",
+        [OP_MUL] = "OP_MUL",
+        [OP_DIV] = "OP_DIV",
+        [OPEN_PARENT] = "OPEN_PARENT",
+        [CLOSE_PARENT] = "CLOSE_PARENT",
+        [LIMIT] = "LIMIT",
+        [NUMBER] = "NUMBER",
+        [UNKNOWN] = "UNKNOWN"
+};
+
 void *calc_malloc(size_t len)
 {
     void *p = NULL;
@@ -139,26 +153,12 @@ inline char peek()
 
 void debug_tokens(struct Lexer *tokens)
 {
-    const char *lookup_t[] = {
-        "UNARY_NEG",
-        "UNARY_POS",
-        "OP_ADD",
-        "OP_SUB",
-        "OP_MUL",
-        "OP_DIV",
-        "OPEN_PARENTHESIS",
-        "CLOSE_PARENTHESIS",
-        "LIMIT",
-        "NUMBER",
-        "UNARY",
-        "UNKNOWN"
-};
     for (size_t i = 0; i < tokens->len; i++)
     {
         printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
                 i, 
                 &tokens->chars[i][0],
-                lookup_t[get_type(tokens->chars[i][0])],
+                type_names[get_type(tokens->chars[i][0])],
                 get_bp(tokens->chars[i][0])
               );
     }
