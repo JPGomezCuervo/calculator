@@ -83,6 +83,6 @@ struct  Leaf *parse_leaf();
 struct  Leaf *make_leaf(char *tk);
 double   eval_tree(struct Leaf *tree);
 void    dead(enum Calc_err err);
-void    check_semantics(struct Leaf *tree, struct Leaf *parent);
+void    check_semantics();
 
 #endif

@@ -402,25 +402,22 @@ void dead(enum Calc_err err)
         exit(err);
 }
 
-void check_semantics(struct Leaf *tree, struct Leaf *parent)
+void check_semantics()
 {
-        assert(tree != NULL);
-        assert(tree->value != NULL);
-        enum Type curr_t = get_type(*tree->value);
+        assert(tokens->chars != NULL);
 
-        if (parent != NULL)
+        for (size_t i = tokens->len - 1; (int)i >= 0; i--)
         {
-                enum Type paren_t = get_type(*parent->value);
-                if (is_operator(paren_t) == is_operator(curr_t))
+                enum Type curr_t = get_type(*tokens->chars[i]);
+
+                if (tokens->len-2 == i && is_operator(curr_t))
                         dead(ERR_SYNTAX);
+
+                if (i != 0)
+                {
+                        enum Type prev =  get_type(*tokens->chars[--i]);
+                        if (is_operator(prev) && is_operator(curr_t))
+                                dead(ERR_SYNTAX);
+                }
         }
-
-        if (is_operator(curr_t) && parent == NULL)
-                dead(ERR_SYNTAX);
-
-        if (tree->left != NULL)
-                check_semantics(tree->left, tree);
-
-        if (tree->right != NULL)
-                check_semantics(tree->right, tree);
 }
