@@ -407,18 +407,27 @@ void check_semantics()
 {
         assert(tokens->chars != NULL);
 
-        for (size_t i = tokens->len - 1; (int)i >= 0; i--)
+        bool was_operator = false;
+
+        for (size_t i = 0; i < tokens->len; i++)
         {
                 enum Type curr_t = get_type(*tokens->chars[i]);
-
-                if (tokens->len-2 == i && is_operator(curr_t))
-                        dead(ERR_SYNTAX);
 
                 if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
                         dead(ERR_SYNTAX);
 
-                enum Type prev =  get_type(*tokens->chars[--i]);
-                if (is_operator(prev) && is_operator(curr_t))
+                if (isdigit(*tokens->chars[i]))
+                {
+                        was_operator = false;
+                        continue;
+                }
+
+                if (is_operator(curr_t) && was_operator) 
                         dead(ERR_SYNTAX);
+                
+                if (curr_t == LIMIT && was_operator)
+                        dead(ERR_SYNTAX);
+
+                was_operator = is_operator(curr_t);
         }
 }
