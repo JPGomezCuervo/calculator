@@ -12,7 +12,6 @@ char *input = NULL;
 size_t input_len = 0; 
 
 //TODO: Add continuous mode when no args are passed, big while
-//TODO: Think how handle integer, floats and doubles
 //TODO: Handle implicit multiplication eg. 2(2)
 
 int main(int argsc, char **argsv)

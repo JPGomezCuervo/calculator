@@ -109,7 +109,7 @@ void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos)
                 size_t size = 0;
                 const char *p_input = &input[*i];
 
-                while (isdigit(*p_input) && *i < input_len)
+                while ((isdigit(*p_input) || *p_input == '.') && *i < input_len)
                 {
                         size++;
                         p_input++;
@@ -416,7 +416,7 @@ void check_semantics()
                 if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
                         dead(ERR_SYNTAX);
 
-                if (isdigit(*tokens->chars[i]))
+                if (isdigit(*tokens->chars[i]) || *tokens->chars[i] == '.')
                 {
                         was_operator = false;
                         continue;
