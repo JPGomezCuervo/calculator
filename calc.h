@@ -84,5 +84,8 @@ struct  Leaf *make_leaf(char *tk);
 double   eval_tree(struct Leaf *tree);
 void    dead(enum Calc_err err);
 void    check_semantics();
+int     calc_scan();
+int     make_tokens();
+struct Lexer *initialize_tokens(size_t input_len);
 
 #endif

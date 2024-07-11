@@ -72,6 +72,45 @@ void calc_log(char *message, const char *function, int line)
         printf("%s at %s::line %d", message, function, line);
 }
 
+int calc_scan()
+{
+        char c;
+        size_t pos = 0;
+        size_t buff_size = 50;
+        enum Type t;
+
+        if (input == NULL)
+        {
+                input = calc_malloc(buff_size * sizeof(char));
+                input[buff_size - 1] = '\0';
+        }
+
+        while ((c = fgetc(stdin)) != EOF && c != '\n')
+        {
+
+                if (pos >= buff_size)
+                {
+                        buff_size *= 2;
+                        input = calc_realloc(input, buff_size);
+                }
+
+                if (!isspace(c))
+                {
+                        if ((t = get_type(c)) == UNKNOWN || t == DELIMITER)
+                                dead(ERR_UNKNOWN_OPERATOR);
+                        input[pos] = c;
+                        pos++;
+                }
+
+        }
+        input[pos] = '?';
+        pos++;
+
+        input[pos] = '\0';
+
+        return pos;
+}
+
 void free_tree(struct Leaf *tree)
 {
         if (!tree)
@@ -430,4 +469,38 @@ void check_semantics()
 
                 was_operator = is_operator(curr_t);
         }
+}
+
+int make_tokens()
+{
+        int tks_readed = 0;
+        for (size_t i = 0; i < input_len; i++)
+        {
+                enum Type t = get_type(input[i]);
+                add_token(&i, t, input_len, tks_readed);
+                tks_readed++;
+        }
+        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * tks_readed);
+        tokens->len = tks_readed;
+
+        return tks_readed;
+}
+
+struct Lexer *initialize_tokens(size_t input_len)
+{
+        if(tokens != NULL)
+        {
+                for (int i = (int)tokens->len - 1; i >= 0; i--)
+                        free(tokens->chars[i]);
+
+                free(tokens->chars);
+                free(tokens);
+        }
+
+        tokens = calc_malloc(sizeof(struct Lexer));
+        tokens->len = input_len;
+        tokens->chars = calc_malloc(sizeof(char*) * input_len);
+        tokens->curr = 0;
+
+        return tokens;
 }

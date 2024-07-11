@@ -11,41 +11,47 @@ struct Leaf *tree = NULL;
 char *input = NULL;           
 size_t input_len = 0; 
 
-//TODO: Add continuous mode when no args are passed, big while
 //TODO: Handle implicit multiplication eg. 2(2)
+//TODO: Handle errors in continuos mode
 
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
+        bool alive = true;
 
-        if (argsc < 2)
+        /* continuous mode */
+        if (argsc <= 1)
         {
-                printf("USE: calc <expr>\n");
-                dead(ERR_NO_INPUT);
+                while(alive)
+                {
+                        printf(">> ");
+                        input_len = calc_scan();
+                        tokens = initialize_tokens(input_len);
+                        make_tokens();
+                        check_semantics();
+                        tree = parse_expr(MIN_LIMIT);
+
+                        if (tree != NULL)
+                                printf("%.2f\n", eval_tree(tree));
+                }
         }
 
-
-        /* Joins all args into one string */
-        for (int i = 1; i < argsc; i++)
-                input_len += strlen(argsv[i]);
-
+        /* one expr mode */
+        input_len += strlen(argsv[1]);
         /* 'input_len + 2' -> input_len + \0 + delimiter */
         input = calc_malloc(sizeof(char) * (input_len + 2));
 
         int input_index = 0;
-        for (int i = 1; i < argsc; i++)
+        char *psrc = argsv[1];
+
+        while (*psrc != '\0')
         {
-                char *psrc = argsv[i];
+                if (*psrc == DELIMITER)
+                        dead(ERR_UNKNOWN_OPERATOR);
 
-                while (*psrc != '\0')
-                {
-                        if (*psrc == DELIMITER)
-                                dead(ERR_UNKNOWN_OPERATOR);
-
-                        if (!isspace(*psrc))
-                                input[input_index++] = *psrc;
-                        psrc++;
-                }
+                if (!isspace(*psrc))
+                        input[input_index++] = *psrc;
+                psrc++;
         }
 
         input[input_index++] = DELIMITER;
@@ -54,23 +60,9 @@ int main(int argsc, char **argsv)
 
         input = calc_realloc(input, sizeof(char) * (input_index + 1));
 
-        tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->len = input_len;
-        tokens->chars = calc_malloc(sizeof(char*) * input_len);
+        initialize_tokens(input_len);
 
-
-        size_t chars_pos = 0;
-        for (size_t i = 0; i < input_len; i++)
-        {
-                enum Type t = get_type(input[i]);
-                add_token(&i, t, input_len, chars_pos);
-                chars_pos++;
-        }
-        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * chars_pos);
-        tokens->len = chars_pos;
-        tokens->curr = 0;
-
-
+        make_tokens();
         check_semantics();
         tree = parse_expr(MIN_LIMIT);
 
@@ -79,4 +71,3 @@ int main(int argsc, char **argsv)
 
         return 0;
 }
-
