@@ -10,9 +10,9 @@ struct Lexer *tokens = NULL;
 struct Leaf *tree = NULL;
 char *input = NULL;           
 size_t input_len = 0; 
+bool continuous_mode = false;
 
 //TODO: Handle implicit multiplication eg. 2(2)
-//TODO: Handle errors in continuos mode
 //TODO: Add history
 
 int main(int argsc, char **argsv)
@@ -22,19 +22,23 @@ int main(int argsc, char **argsv)
         /* continuous mode */
         if (argsc <= 1)
         {
+                continuous_mode = true;
                 while(true)
                 {
                         printf(">> ");
                         input_len = calc_scan();
                         tokens = initialize_tokens(input_len);
                         make_tokens();
-                        check_semantics();
+
+                        if(!check_semantics())
+                                continue;
+
                         tree = parse_expr(MIN_LIMIT);
 
                         if (tree != NULL)
                                 printf("%.2f\n", eval_tree(tree));
+                        calc_cleanup();
                 }
-                printf("\n");
                 return 0;
         }
 

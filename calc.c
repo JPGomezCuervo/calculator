@@ -103,6 +103,7 @@ int calc_scan()
                 }
 
         }
+        printf("\n");
 
         if (feof(stdin))
         {
@@ -138,14 +139,21 @@ void calc_cleanup()
 
                 free(tokens->chars);
                 free(tokens);
+                tokens = NULL;
         }
 
 
         if (input) 
+        {
                 free(input);
+                input = NULL;
+        }
 
         if (tree)
+        {
                 free_tree(tree);
+                tree = NULL;
+        }
 }
 
 void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
@@ -446,36 +454,63 @@ void dead(enum Calc_err err)
         fprintf(stderr, "ERROR: ");
         fprintf(stderr, "%s\n", calc_err_msg[err]);
 
-        exit(err);
+        if (continuous_mode)
+                calc_cleanup();
+        else 
+                exit(err);
 }
 
-void check_semantics()
+void continuos_mode_err(enum Calc_err err)
+{
+        assert(err >= 0);
+
+        fprintf(stderr, "ERROR: ");
+        fprintf(stderr, "%s\n", calc_err_msg[err]);
+        calc_cleanup();
+}
+
+bool check_semantics()
 {
         assert(tokens->chars != NULL);
 
         bool was_operator = false;
+        bool everything_ok = true;
 
-        for (size_t i = 0; i < tokens->len; i++)
+        for (size_t i = 0; i < tokens->len; i++) 
         {
                 enum Type curr_t = get_type(*tokens->chars[i]);
 
-                if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
-                        dead(ERR_SYNTAX);
+                if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV)) 
+                {
+                        everything_ok = false;
+                        break;
+                }
 
-                if (isdigit(*tokens->chars[i]) || *tokens->chars[i] == '.')
+                if (isdigit(*tokens->chars[i]) || *tokens->chars[i] == '.') 
                 {
                         was_operator = false;
                         continue;
                 }
 
                 if (is_operator(curr_t) && was_operator) 
-                        dead(ERR_SYNTAX);
+                {
+                        everything_ok = false;
+                        break;
+                }
 
-                if (curr_t == LIMIT && was_operator)
-                        dead(ERR_SYNTAX);
+                if (curr_t == LIMIT && was_operator) 
+                {
+                        everything_ok = false;
+                        break;
+                }
 
                 was_operator = is_operator(curr_t);
         }
+
+        if (!everything_ok) 
+                dead(ERR_SYNTAX);
+
+        return everything_ok;
 }
 
 int make_tokens()

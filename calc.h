@@ -10,7 +10,7 @@
 
 enum Calc_err
 {
-        ERR_NO_INPUT,
+        ERR_NO_INPUT = 1,
         ERR_DIVIDE_BY_ZERO,
         ERR_UNKNOWN_OPERATOR,
         ERR_SYNTAX,
@@ -59,6 +59,7 @@ extern  struct Lexer *tokens;
 extern  char *input;
 extern  size_t input_len;
 extern  struct Leaf *tree;
+extern bool continuous_mode;
 
 void    *calc_malloc(size_t len);
 void    *calc_calloc(int num, size_t size);
@@ -83,7 +84,7 @@ struct  Leaf *parse_leaf();
 struct  Leaf *make_leaf(char *tk);
 double   eval_tree(struct Leaf *tree);
 void    dead(enum Calc_err err);
-void    check_semantics();
+bool    check_semantics();
 int     calc_scan();
 int     make_tokens();
 struct Lexer *initialize_tokens(size_t input_len);
