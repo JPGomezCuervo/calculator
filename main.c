@@ -13,6 +13,7 @@ size_t input_len = 0;
 
 //TODO: Handle implicit multiplication eg. 2(2)
 //TODO: Handle errors in continuos mode
+//TODO: Add history
 
 int main(int argsc, char **argsv)
 {
