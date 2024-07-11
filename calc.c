@@ -96,18 +96,23 @@ int calc_scan()
 
                 if (!isspace(c))
                 {
-                        if ((t = get_type(c)) == UNKNOWN || t == DELIMITER)
+                        if ((t = get_type(c)) == UNKNOWN || t == LIMIT)
+                        {
+                                flush_stdin();
                                 dead(ERR_UNKNOWN_OPERATOR);
+                                return 0;
+                        }
+
                         input[pos] = c;
                         pos++;
                 }
 
         }
-        printf("\n");
 
         if (feof(stdin))
         {
                 clearerr(stdin);
+                printf("\n");
                 exit(0);
         }
 
@@ -117,6 +122,11 @@ int calc_scan()
         input[pos] = '\0';
 
         return pos;
+}
+
+void flush_stdin(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
 }
 
 void free_tree(struct Leaf *tree)
@@ -249,7 +259,6 @@ enum Type get_type(char c)
                 case '5': case '6': case '7': case '8': case '9':
                         return NUMBER;
                 default:
-                        dead(ERR_UNKNOWN_OPERATOR);
                         return UNKNOWN;
         }
 }
@@ -460,15 +469,6 @@ void dead(enum Calc_err err)
                 exit(err);
 }
 
-void continuos_mode_err(enum Calc_err err)
-{
-        assert(err >= 0);
-
-        fprintf(stderr, "ERROR: ");
-        fprintf(stderr, "%s\n", calc_err_msg[err]);
-        calc_cleanup();
-}
-
 bool check_semantics()
 {
         assert(tokens->chars != NULL);
@@ -499,6 +499,12 @@ bool check_semantics()
                 }
 
                 if (curr_t == LIMIT && was_operator) 
+                {
+                        everything_ok = false;
+                        break;
+                }
+
+                if (curr_t == CLOSE_PARENT && was_operator)
                 {
                         everything_ok = false;
                         break;
@@ -540,7 +546,6 @@ struct Lexer *initialize_tokens(size_t input_len)
         }
 
         tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->len = input_len;
         tokens->chars = calc_malloc(sizeof(char*) * input_len);
         tokens->curr = 0;
 

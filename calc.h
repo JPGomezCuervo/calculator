@@ -88,5 +88,6 @@ bool    check_semantics();
 int     calc_scan();
 int     make_tokens();
 struct Lexer *initialize_tokens(size_t input_len);
+void flush_stdin(void);
 
 #endif

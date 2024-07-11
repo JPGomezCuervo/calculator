@@ -27,6 +27,10 @@ int main(int argsc, char **argsv)
                 {
                         printf(">> ");
                         input_len = calc_scan();
+
+                        if (input_len == 0)
+                                continue;
+
                         tokens = initialize_tokens(input_len);
                         make_tokens();
 
@@ -43,12 +47,17 @@ int main(int argsc, char **argsv)
         }
 
         /* one expr mode */
-        input_len += strlen(argsv[1]);
-        /* 'input_len + 2' -> input_len + \0 + delimiter */
-        input = calc_malloc(sizeof(char) * (input_len + 2));
 
         int input_index = 0;
         char *psrc = argsv[1];
+
+        while (*psrc != '\0')
+        {
+                if (!isspace(*psrc))
+                        input_len++;
+        }
+
+        input = calc_malloc(sizeof(char) * (input_len + 2));
 
         while (*psrc != '\0')
         {
@@ -64,7 +73,6 @@ int main(int argsc, char **argsv)
         input[input_index] = '\0';
         input_len = input_index;
 
-        input = calc_realloc(input, sizeof(char) * (input_index + 1));
 
         initialize_tokens(input_len);
         make_tokens();
