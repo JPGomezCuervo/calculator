@@ -103,6 +103,13 @@ int calc_scan()
                 }
 
         }
+
+        if (feof(stdin))
+        {
+                clearerr(stdin);
+                exit(0);
+        }
+
         input[pos] = '?';
         pos++;
 
@@ -463,7 +470,7 @@ void check_semantics()
 
                 if (is_operator(curr_t) && was_operator) 
                         dead(ERR_SYNTAX);
-                
+
                 if (curr_t == LIMIT && was_operator)
                         dead(ERR_SYNTAX);
 

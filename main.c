@@ -18,12 +18,11 @@ size_t input_len = 0;
 int main(int argsc, char **argsv)
 {
         atexit(calc_cleanup);
-        bool alive = true;
 
         /* continuous mode */
         if (argsc <= 1)
         {
-                while(alive)
+                while(true)
                 {
                         printf(">> ");
                         input_len = calc_scan();
@@ -35,6 +34,8 @@ int main(int argsc, char **argsv)
                         if (tree != NULL)
                                 printf("%.2f\n", eval_tree(tree));
                 }
+                printf("\n");
+                return 0;
         }
 
         /* one expr mode */
@@ -62,7 +63,6 @@ int main(int argsc, char **argsv)
         input = calc_realloc(input, sizeof(char) * (input_index + 1));
 
         initialize_tokens(input_len);
-
         make_tokens();
         check_semantics();
         tree = parse_expr(MIN_LIMIT);
