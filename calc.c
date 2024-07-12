@@ -5,6 +5,14 @@
 #include <assert.h>
 #include <ctype.h>
 
+struct Calculator
+{
+        struct Lexer *tokens;
+        struct Leaf *tree;
+        char *input;
+        size_t input_len;
+};
+
 const char *type_names[] = {
         [UNARY_NEG] = "UNARY_NEG",
         [UNARY_POS] = "UNARY_POS",
@@ -82,8 +90,10 @@ void free_tree(struct Leaf *tree)
         free(tree);
 }
 
-void calc_cleanup()
+void calc_cleanup(struct Calculator *handler)
 {
+        struct Lexer *tokens = handler->tokens;
+
         if (tokens) 
         {
                 /*Reverse loop to take advantage of the Zero Flag cpu optmization*/
@@ -92,24 +102,33 @@ void calc_cleanup()
 
                 free(tokens->chars);
                 free(tokens);
+                tokens = NULL;
         }
 
 
-        if (input) 
-                free(input);
+        if (handler->input) 
+        {
+                free(handler->input);
+                handler->input = NULL;
+        }
 
-        if (tree)
-                free_tree(tree);
+        if (handler->tree)
+        {
+                free_tree(handler->tree);
+                handler->tree = NULL;
+        }
+        free(handler);
 }
 
-void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos) 
+void add_token(struct Calculator *handler, size_t *i, enum Type t, size_t tokens_pos) 
 {
+        struct Lexer *tokens = handler->tokens;
         if (t == NUMBER)
         {
                 size_t size = 0;
-                const char *p_input = &input[*i];
+                const char *p_input = &(handler->input[*i]);
 
-                while ((isdigit(*p_input) || *p_input == '.') && *i < input_len)
+                while ((isdigit(*p_input) || *p_input == '.') && *i < handler->input_len)
                 {
                         size++;
                         p_input++;
@@ -119,7 +138,7 @@ void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos)
 
                 for (size_t j = 0; j < size; j++)
                 {
-                        str[j] = input[*i];
+                        str[j] = handler->input[*i];
                         (*i)++;
                 }
 
@@ -130,13 +149,14 @@ void add_token(size_t *i, enum Type t, size_t input_len, size_t tokens_pos)
         else
         {
                 tokens->chars[tokens_pos] = calc_malloc(sizeof(char) * 2);
-                tokens->chars[tokens_pos][0] = input[*i];
+                tokens->chars[tokens_pos][0] = handler->input[*i];
                 tokens->chars[tokens_pos][1] = '\0';
         }
 }
 
-char *get_next()
+char *get_next(struct Calculator *handler)
 {
+        struct Lexer *tokens = handler->tokens;
         assert(tokens != NULL);
 
         char *pc = NULL;
@@ -149,8 +169,9 @@ char *get_next()
         return pc;
 }
 
-char peek()
+char peek(struct Calculator *handler)
 {
+        struct Lexer *tokens = handler->tokens;
         assert(tokens != NULL);
 
         if (*tokens->chars[tokens->curr] != DELIMITER)
@@ -195,7 +216,6 @@ enum Type get_type(char c)
                 case '5': case '6': case '7': case '8': case '9':
                         return NUMBER;
                 default:
-                        dead(ERR_UNKNOWN_OPERATOR);
                         return UNKNOWN;
         }
 }
@@ -283,9 +303,9 @@ struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
         return leaf;
 }
 
-struct Leaf *parse_leaf()
+struct Leaf *parse_leaf(struct Calculator *handler)
 {
-        char *tk = get_next();
+        char *tk = get_next(handler);
         struct Leaf *leaf = NULL;
 
         if (tk == NULL)
@@ -295,15 +315,15 @@ struct Leaf *parse_leaf()
 
         if (t == OP_ADD || t == OP_SUB)
         {
-                struct Leaf *right = parse_leaf(); 
+                struct Leaf *right = parse_leaf(handler); 
                 leaf = make_leaf(tk);
                 leaf->right = right;
         }
         else if (t == OPEN_PARENT)
         {
-                leaf = parse_expr(MIN_LIMIT);
+                leaf = parse_expr(handler, MIN_LIMIT);
                 /* consumes close parenthesis */
-                get_next(); 
+                get_next(handler); 
         }
         else 
         {
@@ -313,14 +333,14 @@ struct Leaf *parse_leaf()
         return leaf;
 }
 
-struct Leaf *parse_expr(enum Bp bp)
+struct Leaf *parse_expr(struct Calculator *handler, enum Bp bp)
 {
-        struct Leaf *left = parse_leaf();
+        struct Leaf *left = parse_leaf(handler);
         struct Leaf *node = NULL;
 
         while (true)
         {
-                node = increasing_prec(left, bp);
+                node = increasing_prec(handler, left, bp);
 
                 if (left == node)
                         break;
@@ -329,9 +349,9 @@ struct Leaf *parse_expr(enum Bp bp)
         return left;
 }
 
-struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
+struct Leaf *increasing_prec(struct Calculator *handler,struct Leaf *left, enum Bp min_bp)
 {
-        char next = peek();
+        char next = peek(handler);
         enum Type t = get_type(next);
         enum Bp bp = get_bp(next);
 
@@ -343,10 +363,10 @@ struct Leaf *increasing_prec(struct Leaf *left, enum Bp min_bp)
         {
                 while (bp >= min_bp) 
                 {
-                        char *op = get_next();
-                        struct Leaf *right = parse_expr(bp);
+                        char *op = get_next(handler);
+                        struct Leaf *right = parse_expr(handler, bp);
                         left = make_binary_expr(op,left, right);
-                        next = peek();
+                        next = peek(handler);
                         t = get_type(next);
 
                         if (next == DELIMITER || t == CLOSE_PARENT)
@@ -403,8 +423,9 @@ void dead(enum Calc_err err)
         exit(err);
 }
 
-void check_semantics()
+void check_semantics(struct Calculator *handler)
 {
+        struct Lexer *tokens = handler->tokens;
         assert(tokens->chars != NULL);
 
         bool was_operator = false;
@@ -430,4 +451,92 @@ void check_semantics()
 
                 was_operator = is_operator(curr_t);
         }
+}
+
+int make_tokens(struct Calculator *handler)
+{
+        int tks_readed = 0;
+        struct Lexer *tokens = handler->tokens;
+        for (size_t i = 0; i < handler->input_len; i++)
+        {
+                enum Type t = get_type(handler->input[i]);
+                add_token(handler, &i, t, tks_readed);
+                tks_readed++;
+        }
+        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * tks_readed);
+        tokens->len = tks_readed;
+
+        return tks_readed;
+}
+
+struct Lexer *initialize_tokens(struct Calculator *handler)
+{
+        struct Lexer *tokens = NULL;
+
+        // rethink this part
+        if(tokens != NULL)
+        {
+                for (int i = (int)tokens->len - 1; i >= 0; i--)
+                        free(tokens->chars[i]);
+
+                free(tokens->chars);
+                free(tokens);
+        }
+
+        tokens = calc_malloc(sizeof(struct Lexer));
+        tokens->chars = calc_malloc(sizeof(char*) * handler->input_len);
+        tokens->curr = 0;
+
+        return tokens;
+}
+
+double calculate_expr(struct Calculator *handler, char *str)
+{
+        double result = 0;
+        int input_index = 0;
+        char *psrc = str;
+
+        while (*psrc != '\0')
+        {
+                if (!isspace(*psrc))
+                        handler->input_len++;
+                psrc++;
+        }
+
+        psrc = str;
+        handler->input = calc_malloc(sizeof(char) * (handler->input_len + 2));
+
+        while (*psrc != '\0')
+        {
+                if (*psrc == DELIMITER)
+                        dead(ERR_UNKNOWN_OPERATOR);
+
+                if (!isspace(*psrc))
+                        handler->input[input_index++] = *psrc;
+                psrc++;
+        }
+
+        handler->input[input_index++] = DELIMITER;
+        handler->input[input_index] = '\0';
+        handler->input_len = input_index;
+
+
+        handler->tokens = initialize_tokens(handler);
+        make_tokens(handler);
+        check_semantics(handler);
+        handler->tree = parse_expr(handler, MIN_LIMIT);
+
+        result = eval_tree(handler->tree);
+        calc_cleanup(handler);
+        return result;
+}
+
+struct Calculator *init_calculator()
+{
+        struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
+        calculator->tokens = NULL;
+        calculator->input = NULL;
+        calculator->tree = NULL;
+        calculator->input_len = 0;
+        return calculator;
 }
