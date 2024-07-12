@@ -1,8 +1,8 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include "calc.h"
 
 //TODO: Handle implicit multiplication eg. 2(2)
+//TODO: Add history
 int main(int argsc, char **argsv)
 {
         if (argsc != 2)
