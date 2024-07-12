@@ -2,10 +2,10 @@
 #include "calc.h"
 
 //TODO: Handle implicit multiplication eg. 2(2)
-//TODO: Add history
+//TODO: Cycle history when capacity is full
 int main(int argsc, char **argsv)
 {
-        Calculator *calculator = init_calculator();
+        Calculator *calculator = init_calculator(0);
 
         if (argsc != 2)
         {
@@ -16,5 +16,7 @@ int main(int argsc, char **argsv)
         double result = calculate_expr(calculator, argsv[1]);
 
         printf("%.2f\n", result);
+
+
         destroy_calculator(calculator);
 }

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 #define DELIMITER '?'
 
 enum Calc_err
@@ -53,10 +54,23 @@ struct Leaf
         struct Leaf *right;
 };
 
+struct Expression
+{
+        int8_t id;
+        char *expr;
+        double result;
+};
+
+struct History
+{
+        struct Expression **exprs;
+        size_t len;
+        size_t capacity;
+};
+
 /* opaque pointer */
 typedef struct Calculator Calculator; 
 
-struct Calculator *init_calculator();
 void *calc_malloc(size_t len);
 void *calc_calloc(int num, size_t size);
 void *calc_realloc(void *p, size_t new_size);
@@ -87,5 +101,8 @@ void dead(Calculator *handler, enum Calc_err err);
 enum Calc_err error_code(Calculator *handler);
 char *error_message(Calculator *handler);
 void destroy_calculator(Calculator *handler);
+struct Calculator *init_calculator(size_t history_size);
+struct Expression **get_history(struct Calculator *handler);
+size_t get_history_len(struct Calculator *handler);
 
 #endif

@@ -12,6 +12,8 @@ struct Calculator
         char *input;
         size_t input_len;
         enum Calc_err error;
+        struct History *history;
+        bool history_active;
 };
 
 const char *type_names[] = {
@@ -36,7 +38,7 @@ char *calc_err_msg [] =
         [ERR_SYNTAX] = "invalid syntax",
 };
 
-struct Calculator *init_calculator()
+struct Calculator *init_calculator(size_t history_size)
 {
         struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
         calculator->tokens = NULL;
@@ -44,6 +46,26 @@ struct Calculator *init_calculator()
         calculator->tree = NULL;
         calculator->input_len = 0;
         calculator->error = ERR_NO_ERR;
+
+        if (history_size != 0)
+        {
+                calculator->history_active = true;
+                calculator->history = calc_malloc(sizeof(struct History));
+                calculator->history->capacity = history_size;
+                calculator->history->len = 0;
+
+                calculator->history->exprs = calc_malloc(sizeof(struct Expression*) * calculator->history->capacity);
+                for (size_t i = 0; i < calculator->history->capacity; i++)
+                {
+                        calculator->history->exprs[i] = calc_malloc(sizeof(struct Expression));
+                        calculator->history->exprs[i]->id = 0;
+                        calculator->history->exprs[i]->expr = NULL;
+                        calculator->history->exprs[i]->id = 0;
+                }
+        }
+        else
+                calculator->history_active = false;
+
         return calculator;
 }
 
@@ -84,6 +106,17 @@ double calculate_expr(struct Calculator *handler, char *str)
         handler->tree = parse_expr(handler, MIN_LIMIT);
 
         result = eval_tree(handler, handler->tree);
+
+        if (handler->history_active)
+        {
+                struct History *p_h = handler->history;
+                p_h->exprs[p_h->len]->expr = calc_malloc(sizeof(char)*(handler->input_len + 1));
+                p_h->exprs[p_h->len]->expr = strcpy(p_h->exprs[p_h->len]->expr, handler->input);
+                p_h->exprs[p_h->len]->result = result;
+                p_h->exprs[p_h->len]->id = p_h->len;
+                p_h->len++;
+        }
+
         calc_cleanup(handler);
         return result;
 }
@@ -555,6 +588,34 @@ char *error_message(Calculator *handler)
 
 void destroy_calculator(Calculator *handler)
 {
+
+        if (handler->history_active)
+        {
+                for (size_t i = 0; i < handler->history->capacity; i++) 
+                {
+                        free(handler->history->exprs[i]->expr);
+                        free(handler->history->exprs[i]);
+                }
+                free(handler->history->exprs);
+                free(handler->history);
+        }
+
         free(handler);
         handler = NULL;
+}
+
+struct Expression **get_history(struct Calculator *handler)
+{
+        if (handler->history)
+                return handler->history->exprs;
+
+        return NULL;
+}
+
+size_t get_history_len(struct Calculator *handler)
+{
+        if (handler->history)
+                return handler->history->len;
+
+        return 0;
 }
