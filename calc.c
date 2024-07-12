@@ -92,6 +92,7 @@ void free_tree(struct Leaf *tree)
 
 void calc_cleanup(struct Calculator *handler)
 {
+
         struct Lexer *tokens = handler->tokens;
 
         if (tokens) 
@@ -104,7 +105,6 @@ void calc_cleanup(struct Calculator *handler)
                 free(tokens);
                 tokens = NULL;
         }
-
 
         if (handler->input) 
         {
@@ -128,7 +128,7 @@ void add_token(struct Calculator *handler, size_t *i, enum Type t, size_t tokens
                 size_t size = 0;
                 const char *p_input = &(handler->input[*i]);
 
-                while ((isdigit(*p_input) || *p_input == '.') && *i < handler->input_len)
+                while (is_number(*p_input) && *i < handler->input_len)
                 {
                         size++;
                         p_input++;
@@ -293,6 +293,7 @@ struct Leaf *make_leaf(char *tk)
         leaf->right = NULL;
         return leaf;
 }
+
 struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
 {
         struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
@@ -387,10 +388,8 @@ double eval_tree(struct Leaf *tree)
         if (t == NUMBER) 
                 return strtod(tree->value, NULL);
 
-
         lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
         rhs = tree->right != NULL ? eval_tree(tree->right) : 0;
-
 
         switch (t) 
         {
@@ -437,17 +436,23 @@ void check_semantics(struct Calculator *handler)
                 if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
                         dead(ERR_SYNTAX);
 
-                if (isdigit(*tokens->chars[i]) || *tokens->chars[i] == '.')
+                if (is_number(*tokens->chars[i]))
                 {
                         was_operator = false;
                         continue;
                 }
 
-                if (is_operator(curr_t) && was_operator) 
-                        dead(ERR_SYNTAX);
-                
-                if (curr_t == LIMIT && was_operator)
-                        dead(ERR_SYNTAX);
+                if (was_operator)
+                {
+                        if (is_operator(curr_t)) 
+                                dead(ERR_SYNTAX);
+
+                        if (curr_t == LIMIT)
+                                dead(ERR_SYNTAX);
+
+                        if (curr_t == CLOSE_PARENT)
+                                dead(ERR_SYNTAX);
+                }
 
                 was_operator = is_operator(curr_t);
         }
@@ -471,19 +476,7 @@ int make_tokens(struct Calculator *handler)
 
 struct Lexer *initialize_tokens(struct Calculator *handler)
 {
-        struct Lexer *tokens = NULL;
-
-        // rethink this part
-        if(tokens != NULL)
-        {
-                for (int i = (int)tokens->len - 1; i >= 0; i--)
-                        free(tokens->chars[i]);
-
-                free(tokens->chars);
-                free(tokens);
-        }
-
-        tokens = calc_malloc(sizeof(struct Lexer));
+        struct Lexer *tokens = calc_malloc(sizeof(struct Lexer));
         tokens->chars = calc_malloc(sizeof(char*) * handler->input_len);
         tokens->curr = 0;
 
@@ -502,8 +495,8 @@ double calculate_expr(struct Calculator *handler, char *str)
                         handler->input_len++;
                 psrc++;
         }
-
         psrc = str;
+
         handler->input = calc_malloc(sizeof(char) * (handler->input_len + 2));
 
         while (*psrc != '\0')
@@ -539,4 +532,9 @@ struct Calculator *init_calculator()
         calculator->tree = NULL;
         calculator->input_len = 0;
         return calculator;
+}
+
+bool is_number(char c)
+{
+        return isdigit(c) || c == '.';
 }

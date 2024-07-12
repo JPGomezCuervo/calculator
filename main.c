@@ -1,17 +1,8 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
 #include "calc.h"
-#include <time.h>
-
-struct Lexer *tokens = NULL;  
-struct Leaf *tree = NULL;
-char *input = NULL;           
-size_t input_len = 0; 
 
 //TODO: Handle implicit multiplication eg. 2(2)
-
 int main(int argsc, char **argsv)
 {
         if (argsc < 2)
