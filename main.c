@@ -5,7 +5,8 @@
 //TODO: Cycle history when capacity is full
 int main(int argsc, char **argsv)
 {
-        Calculator *calculator = init_calculator(0);
+        /* number of history elements */
+        Calculator *calculator = init_calculator(5);
 
         if (argsc != 2)
         {

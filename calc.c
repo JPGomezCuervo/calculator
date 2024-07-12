@@ -49,18 +49,21 @@ struct Calculator *init_calculator(size_t history_size)
 
         if (history_size != 0)
         {
+                struct History *p_hist = NULL;
                 calculator->history_active = true;
                 calculator->history = calc_malloc(sizeof(struct History));
-                calculator->history->capacity = history_size;
-                calculator->history->len = 0;
 
-                calculator->history->exprs = calc_malloc(sizeof(struct Expression*) * calculator->history->capacity);
+                p_hist = calculator->history;
+                p_hist->capacity = history_size;
+                p_hist->len = 0;
+                p_hist->exprs = calc_malloc(sizeof(struct Expression*) * p_hist->capacity);
+
                 for (size_t i = 0; i < calculator->history->capacity; i++)
                 {
                         calculator->history->exprs[i] = calc_malloc(sizeof(struct Expression));
                         calculator->history->exprs[i]->id = 0;
                         calculator->history->exprs[i]->expr = NULL;
-                        calculator->history->exprs[i]->id = 0;
+                        calculator->history->exprs[i]->result = 0.0;
                 }
         }
         else
