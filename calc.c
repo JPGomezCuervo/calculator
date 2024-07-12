@@ -11,6 +11,7 @@ struct Calculator
         struct Leaf *tree;
         char *input;
         size_t input_len;
+        enum Calc_err error;
 };
 
 const char *type_names[] = {
@@ -42,6 +43,7 @@ struct Calculator *init_calculator()
         calculator->input = NULL;
         calculator->tree = NULL;
         calculator->input_len = 0;
+        calculator->error = ERR_NO_ERR;
         return calculator;
 }
 
@@ -64,7 +66,7 @@ double calculate_expr(struct Calculator *handler, char *str)
         while (*psrc != '\0')
         {
                 if (*psrc == DELIMITER)
-                        dead(ERR_UNKNOWN_OPERATOR);
+                        dead(handler, ERR_UNKNOWN_OPERATOR);
 
                 if (!isspace(*psrc))
                         handler->input[input_index++] = *psrc;
@@ -81,17 +83,18 @@ double calculate_expr(struct Calculator *handler, char *str)
         check_semantics(handler);
         handler->tree = parse_expr(handler, MIN_LIMIT);
 
-        result = eval_tree(handler->tree);
+        result = eval_tree(handler, handler->tree);
         calc_cleanup(handler);
         return result;
 }
 
-void dead(enum Calc_err err)
+void dead(Calculator *handler, enum Calc_err err)
 {
         assert(err >= 0);
 
         fprintf(stderr, "ERROR: ");
         fprintf(stderr, "%s\n", calc_err_msg[err]);
+        handler->error = err;
         exit(err);
 }
 
@@ -177,7 +180,6 @@ void calc_cleanup(struct Calculator *handler)
                 free_tree(handler->tree);
                 handler->tree = NULL;
         }
-        free(handler);
 }
 
 struct Lexer *initialize_tokens(struct Calculator *handler)
@@ -455,7 +457,7 @@ void check_semantics(struct Calculator *handler)
                 enum Type curr_t = get_type(*tokens->chars[i]);
 
                 if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
-                        dead(ERR_SYNTAX);
+                        dead(handler, ERR_SYNTAX);
 
                 if (is_number(*tokens->chars[i]))
                 {
@@ -466,20 +468,20 @@ void check_semantics(struct Calculator *handler)
                 if (was_operator)
                 {
                         if (is_operator(curr_t)) 
-                                dead(ERR_SYNTAX);
+                                dead(handler, ERR_SYNTAX);
 
                         if (curr_t == LIMIT)
-                                dead(ERR_SYNTAX);
+                                dead(handler, ERR_SYNTAX);
 
                         if (curr_t == CLOSE_PARENT)
-                                dead(ERR_SYNTAX);
+                                dead(handler, ERR_SYNTAX);
                 }
 
                 was_operator = is_operator(curr_t);
         }
 }
 
-double eval_tree(struct Leaf *tree)
+double eval_tree(Calculator *handler, struct Leaf *tree)
 {
         assert(tree != NULL);
         assert(tree->value != NULL);
@@ -490,8 +492,8 @@ double eval_tree(struct Leaf *tree)
         if (t == NUMBER) 
                 return strtod(tree->value, NULL);
 
-        lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
-        rhs = tree->right != NULL ? eval_tree(tree->right) : 0;
+        lhs = tree->left != NULL ? eval_tree(handler, tree->left) : 0;
+        rhs = tree->right != NULL ? eval_tree(handler, tree->right) : 0;
 
         switch (t) 
         {
@@ -503,13 +505,13 @@ double eval_tree(struct Leaf *tree)
                         return lhs * rhs;
                 case OP_DIV:
                         if (rhs == 0)
-                                dead(ERR_DIVIDE_BY_ZERO);
+                                dead(handler, ERR_DIVIDE_BY_ZERO);
 
                         return lhs / rhs;
                 case UNARY_NEG:
                         return -rhs;
                 default:
-                        dead(ERR_UNKNOWN_OPERATOR);
+                        dead(handler, ERR_UNKNOWN_OPERATOR);
                         return 0.0;
         }
 }
@@ -536,4 +538,23 @@ void debug_tree(struct Leaf *leaf, const char *indent)
                 snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
                 debug_tree(leaf->right, new_indent);
         }
+}
+
+enum Calc_err error_code(Calculator *handler)
+{
+        return handler->error;
+}
+
+char *error_message(Calculator *handler)
+{
+        if (handler->error != ERR_NO_ERR)
+                return calc_err_msg[handler->error];
+        else
+                return NULL;
+}
+
+void destroy_calculator(Calculator *handler)
+{
+        free(handler);
+        handler = NULL;
 }

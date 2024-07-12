@@ -7,6 +7,7 @@
 
 enum Calc_err
 {
+        ERR_NO_ERR,
         ERR_NO_INPUT,
         ERR_DIVIDE_BY_ZERO,
         ERR_UNKNOWN_OPERATOR,
@@ -78,10 +79,13 @@ struct Leaf *increasing_prec(struct Calculator *handler,struct Leaf *left, enum 
 struct Leaf *parse_leaf(struct Calculator *handler);
 struct Leaf *make_leaf(char *tk);
 struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right);
-double eval_tree(struct Leaf *tree);
+double eval_tree(Calculator *handler, struct Leaf *tree);
 void check_semantics(struct Calculator *handler);
 double calculate_expr(struct Calculator *handler, char *str);
 struct Lexer *initialize_tokens(struct Calculator *handler);
-void dead(enum Calc_err err);
+void dead(Calculator *handler, enum Calc_err err);
+enum Calc_err error_code(Calculator *handler);
+char *error_message(Calculator *handler);
+void destroy_calculator(Calculator *handler);
 
 #endif
