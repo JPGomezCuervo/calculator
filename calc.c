@@ -35,6 +35,66 @@ char *calc_err_msg [] =
         [ERR_SYNTAX] = "invalid syntax",
 };
 
+struct Calculator *init_calculator()
+{
+        struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
+        calculator->tokens = NULL;
+        calculator->input = NULL;
+        calculator->tree = NULL;
+        calculator->input_len = 0;
+        return calculator;
+}
+
+double calculate_expr(struct Calculator *handler, char *str)
+{
+        double result = 0;
+        int input_index = 0;
+        char *psrc = str;
+
+        while (*psrc != '\0')
+        {
+                if (!isspace(*psrc))
+                        handler->input_len++;
+                psrc++;
+        }
+        psrc = str;
+
+        handler->input = calc_malloc(sizeof(char) * (handler->input_len + 2));
+
+        while (*psrc != '\0')
+        {
+                if (*psrc == DELIMITER)
+                        dead(ERR_UNKNOWN_OPERATOR);
+
+                if (!isspace(*psrc))
+                        handler->input[input_index++] = *psrc;
+                psrc++;
+        }
+
+        handler->input[input_index++] = DELIMITER;
+        handler->input[input_index] = '\0';
+        handler->input_len = input_index;
+
+
+        handler->tokens = initialize_tokens(handler);
+        make_tokens(handler);
+        check_semantics(handler);
+        handler->tree = parse_expr(handler, MIN_LIMIT);
+
+        result = eval_tree(handler->tree);
+        calc_cleanup(handler);
+        return result;
+}
+
+void dead(enum Calc_err err)
+{
+        assert(err >= 0);
+
+        fprintf(stderr, "ERROR: ");
+        fprintf(stderr, "%s\n", calc_err_msg[err]);
+        exit(err);
+}
+
 void *calc_malloc(size_t len)
 {
         void *p = NULL;
@@ -120,6 +180,31 @@ void calc_cleanup(struct Calculator *handler)
         free(handler);
 }
 
+struct Lexer *initialize_tokens(struct Calculator *handler)
+{
+        struct Lexer *tokens = calc_malloc(sizeof(struct Lexer));
+        tokens->chars = calc_malloc(sizeof(char*) * handler->input_len);
+        tokens->curr = 0;
+
+        return tokens;
+}
+
+int make_tokens(struct Calculator *handler)
+{
+        int tks_readed = 0;
+        struct Lexer *tokens = handler->tokens;
+        for (size_t i = 0; i < handler->input_len; i++)
+        {
+                enum Type t = get_type(handler->input[i]);
+                add_token(handler, &i, t, tks_readed);
+                tks_readed++;
+        }
+        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * tks_readed);
+        tokens->len = tks_readed;
+
+        return tks_readed;
+}
+
 void add_token(struct Calculator *handler, size_t *i, enum Type t, size_t tokens_pos) 
 {
         struct Lexer *tokens = handler->tokens;
@@ -154,6 +239,19 @@ void add_token(struct Calculator *handler, size_t *i, enum Type t, size_t tokens
         }
 }
 
+void debug_tokens(struct Lexer *tokens)
+{
+        for (size_t i = 0; i < tokens->len; i++)
+        {
+                printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
+                                i, 
+                                &tokens->chars[i][0],
+                                type_names[get_type(tokens->chars[i][0])],
+                                get_bp(tokens->chars[i][0])
+                      );
+        }
+}
+
 char *get_next(struct Calculator *handler)
 {
         struct Lexer *tokens = handler->tokens;
@@ -178,19 +276,6 @@ char peek(struct Calculator *handler)
                 return *tokens->chars[tokens->curr];
 
         return DELIMITER;
-}
-
-void debug_tokens(struct Lexer *tokens)
-{
-        for (size_t i = 0; i < tokens->len; i++)
-        {
-                printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
-                                i, 
-                                &tokens->chars[i][0],
-                                type_names[get_type(tokens->chars[i][0])],
-                                get_bp(tokens->chars[i][0])
-                      );
-        }
 }
 
 enum Type get_type(char c) 
@@ -242,6 +327,11 @@ enum Bp get_bp(char c)
         }
 }
 
+bool is_number(char c)
+{
+        return isdigit(c) || c == '.';
+}
+
 bool is_operator(enum Type t)
 {
         switch (t)
@@ -259,30 +349,6 @@ bool is_operator(enum Type t)
 bool is_parenthesis(enum Type t)
 {
         return (t == OPEN_PARENT || t == CLOSE_PARENT);
-}
-
-void debug_tree(struct Leaf *leaf, const char *indent)
-{
-        if (leaf == NULL)
-                return;
-
-        printf("%sHead: %s\n", indent, leaf->value ? leaf->value : "NULL");
-
-        if (leaf->left)
-        {
-                printf("%sLeft:\n", indent);
-                char new_indent[256];
-                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-                debug_tree(leaf->left, new_indent);
-        }
-
-        if (leaf->right)
-        {
-                printf("%sRight:\n", indent);
-                char new_indent[256];
-                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-                debug_tree(leaf->right, new_indent);
-        }
 }
 
 struct Leaf *make_leaf(char *tk)
@@ -377,51 +443,6 @@ struct Leaf *increasing_prec(struct Calculator *handler,struct Leaf *left, enum 
         return left;
 }
 
-double eval_tree(struct Leaf *tree)
-{
-        assert(tree != NULL);
-        assert(tree->value != NULL);
-
-        double lhs = 0.0, rhs = 0.0;
-        enum Type t = get_type(*tree->value);
-
-        if (t == NUMBER) 
-                return strtod(tree->value, NULL);
-
-        lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
-        rhs = tree->right != NULL ? eval_tree(tree->right) : 0;
-
-        switch (t) 
-        {
-                case OP_ADD:
-                        return lhs + rhs;
-                case OP_SUB:
-                        return lhs - rhs;
-                case OP_MUL:
-                        return lhs * rhs;
-                case OP_DIV:
-                        if (rhs == 0)
-                                dead(ERR_DIVIDE_BY_ZERO);
-
-                        return lhs / rhs;
-                case UNARY_NEG:
-                        return -rhs;
-                default:
-                        dead(ERR_UNKNOWN_OPERATOR);
-                        return 0.0;
-        }
-}
-
-void dead(enum Calc_err err)
-{
-        assert(err >= 0);
-
-        fprintf(stderr, "ERROR: ");
-        fprintf(stderr, "%s\n", calc_err_msg[err]);
-
-        exit(err);
-}
-
 void check_semantics(struct Calculator *handler)
 {
         struct Lexer *tokens = handler->tokens;
@@ -458,83 +479,61 @@ void check_semantics(struct Calculator *handler)
         }
 }
 
-int make_tokens(struct Calculator *handler)
+double eval_tree(struct Leaf *tree)
 {
-        int tks_readed = 0;
-        struct Lexer *tokens = handler->tokens;
-        for (size_t i = 0; i < handler->input_len; i++)
+        assert(tree != NULL);
+        assert(tree->value != NULL);
+
+        double lhs = 0.0, rhs = 0.0;
+        enum Type t = get_type(*tree->value);
+
+        if (t == NUMBER) 
+                return strtod(tree->value, NULL);
+
+        lhs = tree->left != NULL ? eval_tree(tree->left) : 0;
+        rhs = tree->right != NULL ? eval_tree(tree->right) : 0;
+
+        switch (t) 
         {
-                enum Type t = get_type(handler->input[i]);
-                add_token(handler, &i, t, tks_readed);
-                tks_readed++;
-        }
-        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * tks_readed);
-        tokens->len = tks_readed;
+                case OP_ADD:
+                        return lhs + rhs;
+                case OP_SUB:
+                        return lhs - rhs;
+                case OP_MUL:
+                        return lhs * rhs;
+                case OP_DIV:
+                        if (rhs == 0)
+                                dead(ERR_DIVIDE_BY_ZERO);
 
-        return tks_readed;
-}
-
-struct Lexer *initialize_tokens(struct Calculator *handler)
-{
-        struct Lexer *tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->chars = calc_malloc(sizeof(char*) * handler->input_len);
-        tokens->curr = 0;
-
-        return tokens;
-}
-
-double calculate_expr(struct Calculator *handler, char *str)
-{
-        double result = 0;
-        int input_index = 0;
-        char *psrc = str;
-
-        while (*psrc != '\0')
-        {
-                if (!isspace(*psrc))
-                        handler->input_len++;
-                psrc++;
-        }
-        psrc = str;
-
-        handler->input = calc_malloc(sizeof(char) * (handler->input_len + 2));
-
-        while (*psrc != '\0')
-        {
-                if (*psrc == DELIMITER)
+                        return lhs / rhs;
+                case UNARY_NEG:
+                        return -rhs;
+                default:
                         dead(ERR_UNKNOWN_OPERATOR);
+                        return 0.0;
+        }
+}
 
-                if (!isspace(*psrc))
-                        handler->input[input_index++] = *psrc;
-                psrc++;
+void debug_tree(struct Leaf *leaf, const char *indent)
+{
+        if (leaf == NULL)
+                return;
+
+        printf("%sHead: %s\n", indent, leaf->value ? leaf->value : "NULL");
+
+        if (leaf->left)
+        {
+                printf("%sLeft:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->left, new_indent);
         }
 
-        handler->input[input_index++] = DELIMITER;
-        handler->input[input_index] = '\0';
-        handler->input_len = input_index;
-
-
-        handler->tokens = initialize_tokens(handler);
-        make_tokens(handler);
-        check_semantics(handler);
-        handler->tree = parse_expr(handler, MIN_LIMIT);
-
-        result = eval_tree(handler->tree);
-        calc_cleanup(handler);
-        return result;
-}
-
-struct Calculator *init_calculator()
-{
-        struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
-        calculator->tokens = NULL;
-        calculator->input = NULL;
-        calculator->tree = NULL;
-        calculator->input_len = 0;
-        return calculator;
-}
-
-bool is_number(char c)
-{
-        return isdigit(c) || c == '.';
+        if (leaf->right)
+        {
+                printf("%sRight:\n", indent);
+                char new_indent[256];
+                snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
+                debug_tree(leaf->right, new_indent);
+        }
 }

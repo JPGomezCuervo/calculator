@@ -5,7 +5,7 @@
 //TODO: Handle implicit multiplication eg. 2(2)
 int main(int argsc, char **argsv)
 {
-        if (argsc < 2)
+        if (argsc != 2)
         {
                 printf("USE: calc <expr>\n");
                 dead(ERR_NO_INPUT);

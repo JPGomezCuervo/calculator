@@ -3,10 +3,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdbool.h>
-
 #define DELIMITER '?'
-
-/* error codes */
 
 enum Calc_err
 {
