@@ -117,16 +117,23 @@ double calculate_expr(struct Calculator *h, char *str)
 
         if (h->history_active)
         {
-                struct History *p_h = h->history;
-                p_h->exprs[p_h->len]->expr = calc_malloc(sizeof(char)*(h->input_len + 1));
-                *p_h->exprs[p_h->len] = (struct Expression)
+                struct History *p_hist = h->history;
+                if (!(p_hist->len < p_hist->capacity))
                 {
-                        .expr = strcpy(p_h->exprs[p_h->len]->expr, h->input),
-                        .result = result,
-                        .id = p_h->len,
+                        p_hist->len = 0;
+                        free(p_hist->exprs[p_hist->len]->expr);
+                }
+
+                p_hist->exprs[p_hist->len]->expr = calc_malloc(sizeof(char)*(h->input_len + 1));
+
+                *p_hist->exprs[p_hist->len] = (struct Expression)
+                {
+                        .expr = strcpy(p_hist->exprs[p_hist->len]->expr, h->input),
+                                .result = result,
+                                .id = p_hist->len,
                 };
 
-                p_h->len++;
+                p_hist->len++;
         }
 
         calc_cleanup(h);
