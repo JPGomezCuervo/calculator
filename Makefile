@@ -10,6 +10,6 @@ all: $(BINARY)
 $(BINARY): $(OBJECTS)
 	$(CC) $(FLAGS) -o $@ $^
 
-%.o:%.c calc.h
+%.o:%.c calc.h calc_internal.h
 	$(CC) $(FLAGS) -c -o $@ $<
 

@@ -1,3 +1,4 @@
+#include "calc_internal.h"
 #include "calc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,7 +62,7 @@ struct Calculator *init_calculator(size_t history_size)
                 p_hist->len = 0;
                 p_hist->exprs = calc_malloc(sizeof(struct Expression*) * p_hist->capacity);
 
-                for (size_t i = 0; i < p_hist->capacity; i++)
+                for (int i = (int) p_hist->capacity - 1; i >= 0; i--)
                 {
                         p_hist->exprs[i] = calc_malloc(sizeof(struct Expression));
                         *p_hist->exprs[i] = (struct Expression){
@@ -293,8 +294,9 @@ void add_token(struct Calculator *h, size_t *i, enum Type t, size_t tokens_pos)
         }
 }
 
-void debug_tokens(struct Lexer *tokens)
+void debug_tokens(struct Calculator *h)
 {
+        struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < tokens->len; i++)
         {
                 printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
@@ -568,7 +570,13 @@ double eval_tree(Calculator *h, struct Leaf *tree)
         }
 }
 
-void debug_tree(struct Leaf *leaf, const char *indent)
+void debug_tree(struct Calculator *h)
+{
+        assert(h->tokens != NULL);
+        print_tree(h->tree, "");
+}
+
+void print_tree(struct Leaf *leaf, const char *indent)
 {
         if (leaf == NULL)
                 return;
@@ -580,7 +588,7 @@ void debug_tree(struct Leaf *leaf, const char *indent)
                 printf("%sLeft:\n", indent);
                 char new_indent[256];
                 snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-                debug_tree(leaf->left, new_indent);
+                print_tree(leaf->left, new_indent);
         }
 
         if (leaf->right)
@@ -588,7 +596,7 @@ void debug_tree(struct Leaf *leaf, const char *indent)
                 printf("%sRight:\n", indent);
                 char new_indent[256];
                 snprintf(new_indent, sizeof(new_indent), "%s    ", indent);
-                debug_tree(leaf->right, new_indent);
+                print_tree(leaf->right, new_indent);
         }
 }
 

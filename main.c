@@ -10,7 +10,6 @@ int main(int argsc, char **argsv)
         if (argsc != 2)
         {
                 printf("USE: calc <expr>\n");
-                dead(calculator, ERR_NO_INPUT);
         }
 
         double result = calculate_expr(calculator, argsv[1]);
