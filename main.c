@@ -2,6 +2,7 @@
 #include "calc.h"
 
 //TODO: Handle implicit multiplication eg. 2(2)
+/* THIS IS AN EXAMPLE ON HOW TO USE THE LIBRARY */
 int main(int argsc, char **argsv)
 {
         (void) argsc;
@@ -11,7 +12,7 @@ int main(int argsc, char **argsv)
         double result = calculate_expr(calculator, argsv[1]);
         Expression **history = get_history(calculator);
 
-        if (!error_code(calculator))
+        if (!get_error_code(calculator))
         {
                 printf("%.2f\n", result);
                 printf("HISTORY\n");

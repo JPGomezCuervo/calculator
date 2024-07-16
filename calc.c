@@ -610,7 +610,7 @@ void print_tree(struct Leaf *leaf, const char *indent)
         }
 }
 
-enum Calc_err error_code(Calculator *h)
+enum Calc_err get_error_code(Calculator *h)
 {
         return h->error;
 }
