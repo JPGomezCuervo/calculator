@@ -1,6 +1,7 @@
 #ifndef CALC_H
 #define CALC_H
 #include <stddef.h>
+
 enum Calc_err {
     ERR_NO_ERR,
     ERR_NO_INPUT,
@@ -10,11 +11,11 @@ enum Calc_err {
 };
 
 typedef struct Calculator Calculator; 
-struct Expression {
+typedef struct Expression {
     int id;
     char *expr;
     double result;
-};
+} Expression;
 
 struct Calculator *init_calculator(size_t history_size);
 double calculate_expr(struct Calculator *handler, char *str);
@@ -22,6 +23,8 @@ void destroy_calculator(Calculator *handler);
 struct Expression **get_history(struct Calculator *handler);
 size_t get_history_len(struct Calculator *handler);
 void debug_tokens(struct Calculator *handler);
-void debug_tree(struct Calculator *h);
+void debug_tree(struct Calculator *handler);
+enum Calc_err error_code(Calculator *handler);
+char *error_message(Calculator *handler);
 
 #endif

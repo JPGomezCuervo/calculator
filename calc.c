@@ -80,6 +80,14 @@ struct Calculator *init_calculator(size_t history_size)
 
 double calculate_expr(struct Calculator *h, char *str)
 {
+        if (str == NULL)
+        {
+                enum Calc_err err = h->error;
+                dead(h, ERR_NO_INPUT);
+                destroy_calculator(h);
+                exit(err);
+        }
+
         double result = 0;
         int input_index = 0;
         char *psrc = str;
@@ -125,15 +133,17 @@ double calculate_expr(struct Calculator *h, char *str)
                         free(p_hist->exprs[p_hist->len]->expr);
                 }
 
-                p_hist->exprs[p_hist->len]->expr = calc_malloc(sizeof(char)*(h->input_len + 1));
+                p_hist->exprs[p_hist->len]->expr = calc_malloc(sizeof(char)*(h->input_len));
 
+                size_t len = strlen(h->input);
                 *p_hist->exprs[p_hist->len] = (struct Expression)
                 {
-                        .expr = strcpy(p_hist->exprs[p_hist->len]->expr, h->input),
+                                .expr = strncpy(p_hist->exprs[p_hist->len]->expr, h->input, len),
                                 .result = result,
                                 .id = p_hist->len,
                 };
 
+                p_hist->exprs[p_hist->len]->expr[len - 1] = '\0';
                 p_hist->len++;
         }
 
@@ -148,7 +158,7 @@ void dead(Calculator *h, enum Calc_err err)
         fprintf(stderr, "ERROR: ");
         fprintf(stderr, "%s\n", calc_err_msg[err]);
         h->error = err;
-        exit(err);
+        // exit(err);
 }
 
 void *calc_malloc(size_t len)

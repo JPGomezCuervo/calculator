@@ -73,8 +73,6 @@ double eval_tree(Calculator *handler, struct Leaf *tree);
 void check_semantics(struct Calculator *handler);
 struct Lexer *initialize_tokens(struct Calculator *handler);
 void dead(Calculator *handler, enum Calc_err err);
-enum Calc_err error_code(Calculator *handler);
-char *error_message(Calculator *handler);
 void print_tree(struct Leaf *leaf, const char *indent);
 
 #endif // CALC_INTERNAL_H
