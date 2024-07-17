@@ -77,4 +77,4 @@ void print_tree(struct Leaf *leaf, const char *indent);
 void debug_tokens(struct Calculator *handler);
 void debug_tree(struct Calculator *handler);
 
-#endif // CALC_INTERNAL_H
+#endif

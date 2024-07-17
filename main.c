@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "calc.h"
 
-//TODO: Handle implicit multiplication eg. 2(2)
 /* THIS IS AN EXAMPLE ON HOW TO USE THE LIBRARY */
 int main(int argsc, char **argsv)
 {

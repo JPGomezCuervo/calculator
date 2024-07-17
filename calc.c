@@ -491,6 +491,14 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, enum Bp min
         if (next == DELIMITER || t == CLOSE_PARENT)
                 return left;
 
+        if  (t == OPEN_PARENT && is_number(*left->value))
+        {
+                h->tokens->chars[h->tokens->curr][0] = '*';
+                next = peek(h);
+                t = get_type(next);
+                bp = get_bp(next);
+        }
+
         if (is_operator(t))
         {
                 while (bp >= min_bp) 
