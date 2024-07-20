@@ -103,23 +103,23 @@ int main(int argsc, char **argsv)
         {
                 // lifetime of the variable
                 char c = input[i];
-                enum Type t = get_type(c);
-                enum Bp bp = get_bp(c);
+                unsigned char t = get_type(c);
+                unsigned char bp = get_bp(c);
 
                 /* Handle prefix */
                 if (i == 0 && (is_operator(t) || is_parenthesis(t))) 
                 {
                         if (c == '-')
-                                t = UNARY_NEG;
+                                t = TokenType_UNARY_NEG;
 
                         if (c == '+')
-                                t = UNARY_POS;
+                                t = TokenType_UNARY_POS;
 
                         if (c == '(')
-                                t = OPEN_PARENT;
+                                t = TokenType_OPEN_PARENT;
 
                         if (c == ')')
-                                t = CLOSE_PARENT;
+                                t = TokenType_CLOSE_PARENT;
 
                         temp[0] = c;
                         add_token(temp, t, bp);
@@ -138,7 +138,7 @@ int main(int argsc, char **argsv)
                         temp[0] = c;
                         add_token(temp, t, bp);
                 }
-                if (t == LIMIT)
+                if (t == TokenType_LIMIT)
                 {
                         if (was_number)
                         {

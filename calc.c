@@ -65,15 +65,14 @@ void calc_cleanup()
                 free_tree(tree);
 }
 
-void add_token(char *str, enum Type t, enum Bp bp)
+void add_token(char *str, unsigned char t, unsigned char bp)
 {
     struct Token tk;
 
-    if (is_operator(t) || is_parenthesis(t) || t == UNARY_NEG || t == UNARY_POS)
+    if (is_operator(t) || is_parenthesis(t) || t == TokenType_UNARY_NEG || t == TokenType_UNARY_POS)
     {
-            tk.val = calc_calloc(2, sizeof(char));
-            tk.val[0] = str[0];
-            tk.val[1] = '\0';
+            tk.U.op[0] = str[0];
+            tk.U.op[1] = '\0';
             tk.bp = bp;
             tk.type = t;
             tokens->tokens[tokens->len] = tk;
@@ -81,9 +80,8 @@ void add_token(char *str, enum Type t, enum Bp bp)
     }
     else 
     {
-            tk.val = calc_calloc(strlen(str) + 1, sizeof(char));
-            strcpy(tk.val, str);
-            tk.type = NUMBER;
+            tk.U.number = atof(str);
+            tk.type = TokenType_NUMBER;
             tk.bp = BP_NUMBER;
             tokens->tokens[tokens->len] = tk;
             tokens->len++;
@@ -131,18 +129,18 @@ void handle_number_end(bool *was_number, char *temp, int *pos)
 void debug_tokens(struct Lexer *tokens)
 {
     const char *lookup_t[] = {
-        "UNARY_NEG",
-        "UNARY_POS",
-        "OP_ADD",
-        "OP_SUB",
-        "OP_MUL",
-        "OP_DIV",
-        "OPEN_PARENTHESIS",
-        "CLOSE_PARENTHESIS",
-        "LIMIT",
-        "NUMBER",
-        "UNARY",
-        "UNKNOWN"
+        "TokenType_UNARY_NEG",
+        "TokenType_UNARY_POS",
+        "TokenType_OP_ADD",
+        "TokenType_OP_SUB",
+        "TokenType_OP_MUL",
+        "TokenType_OP_DIV",
+        "TokenType_OPEN_PARENTHESIS",
+        "TokenType_CLOSE_PARENTHESIS",
+        "TokenType_LIMIT",
+        "TokenType_NUMBER",
+        "TokenType_UNARY",
+        "TokenType_UNKNOWN"
 };
     for (size_t i = 0; i < tokens->len; i++)
     {
@@ -155,28 +153,28 @@ void debug_tokens(struct Lexer *tokens)
     }
 }
 
-enum Type get_type(char c) {
+unsigned char get_type(char c) {
 
         switch (c) {
                 case '+':
-                        return OP_ADD;
+                        return TokenType_OP_ADD;
                 case '-':
-                        return OP_SUB;
+                        return TokenType_OP_SUB;
                 case '*':
-                        return OP_MUL;
+                        return TokenType_OP_MUL;
                 case '/':
-                        return OP_DIV;
+                        return TokenType_OP_DIV;
                 case '(':
-                        return OPEN_PARENT;
+                        return TokenType_OPEN_PARENT;
                 case ')':
-                        return CLOSE_PARENT;
+                        return TokenType_CLOSE_PARENT;
                 case '?':
-                        return LIMIT;
+                        return TokenType_LIMIT;
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                        return NUMBER;
+                        return TokenType_NUMBER;
                 default:
-                        return UNKNOWN;
+                        return TokenType_UNKNOWN;
         }
 }
 
@@ -200,29 +198,29 @@ enum Bp get_bp(char c) {
         }
 }
 
-bool is_operator(enum Type t)
+bool is_operator(unsigned char t)
 {
         switch (t)
         {
-                case OP_ADD:
-                case OP_SUB:
-                case OP_MUL:
-                case OP_DIV:
+                case TokenType_OP_ADD:
+                case TokenType_OP_SUB:
+                case TokenType_OP_MUL:
+                case TokenType_OP_DIV:
                         return true;
-                case OPEN_PARENT:
-                case CLOSE_PARENT:
-                case LIMIT:
-                case NUMBER:
-                case UNKNOWN:
+                case TokenType_OPEN_PARENT:
+                case TokenType_CLOSE_PARENT:
+                case TokenType_LIMIT:
+                case TokenType_NUMBER:
+                case TokenType_UNKNOWN:
                         return false;
                 default:
                         return false;
         }
 }
 
-bool is_parenthesis(enum Type t)
+bool is_parenthesis(unsigned char t)
 {
-        return (t == OPEN_PARENT || t == CLOSE_PARENT);
+        return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
 
 void debug_tree(struct Leaf *leaf, const char *indent)
@@ -274,15 +272,15 @@ struct Leaf *parse_leaf()
         struct Token *tk = get_next();
         struct Leaf *leaf = NULL;
 
-        if (tk->type == UNARY_NEG)
+        if (tk->type == TokenType_UNARY_NEG)
         {
                 struct Leaf *right = parse_leaf(); 
                 leaf = make_leaf(tk);
                 leaf->right = right;
         }
-        else if (tk->type == OPEN_PARENT)
+        else if (tk->type == TokenType_OPEN_PARENT)
         {
-                leaf = parse_expr(MIN_LIMIT);
+                leaf = parse_expr(BP_MIN_LIMIT);
                 /* consumes close parenthesis */
                 get_next(); 
         }
@@ -294,7 +292,7 @@ struct Leaf *parse_leaf()
         return leaf;
 }
 
-struct Leaf *parse_expr(enum Bp bp)
+struct Leaf *parse_expr(unsigned char bp)
 {
         struct Leaf *left = parse_leaf();
         struct Leaf *node = NULL;
@@ -361,25 +359,25 @@ float eval_tree(struct Leaf *tree)
 
         switch (tree->value->type) 
         {
-                case OP_ADD:
+                case TokenType_OP_ADD:
                         return lhs + rhs;
-                case OP_SUB:
+                case TokenType_OP_SUB:
                         return lhs - rhs;
-                case OP_MUL:
+                case TokenType_OP_MUL:
                         return lhs * rhs;
-                case OP_DIV:
+                case TokenType_OP_DIV:
                         if (rhs == 0) {
                                 fprintf(stderr, "Error: Division by zero\n");
                                 exit(EXIT_FAILURE);
                         }
                         return lhs / rhs;
-                case OPEN_PARENT: 
-                case CLOSE_PARENT: 
-                case LIMIT: 
-                case NUMBER:
+                case TokenType_OPEN_PARENT: 
+                case TokenType_CLOSE_PARENT: 
+                case TokenType_LIMIT: 
+                case TokenType_NUMBER:
                         fprintf(stderr, "Error: invalid operator %s\n", tree->value->val);
                         exit(EXIT_FAILURE);
-                case UNARY_NEG:
+                case TokenType_UNARY_NEG:
                         return -rhs;
                 default:
                         fprintf(stderr, "Error: unknown operator %s\n", tree->value->val);
