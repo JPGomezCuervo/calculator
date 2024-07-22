@@ -6,6 +6,12 @@
 #include <assert.h>
 #include <ctype.h>
 
+#define HEAP_SIZE 4096
+struct CalculatorHeap
+{
+        unsigned char *next_heap;
+};
+
 struct Calculator
 {
         struct Lexer *tokens;
@@ -15,6 +21,8 @@ struct Calculator
         enum Calc_err error;
         struct History *history;
         bool history_active;
+        struct Leaf pool;
+        struct CalculatorHeap* heap;
 };
 
 const char *type_names[] = {
@@ -41,7 +49,11 @@ char *calc_err_msg [] =
 
 struct Calculator *init_calculator(size_t history_size)
 {
+        int rc;
+        struct CalculatorHeap *p_heap;
         struct Calculator *calculator = NULL;
+        unsigned char *p;
+        struct Leaf *p_leaf; 
         calculator = calc_malloc(sizeof(struct Calculator));
 
         if (calculator)
@@ -52,7 +64,46 @@ struct Calculator *init_calculator(size_t history_size)
                 .tree = NULL,
                 .input_len = 0,
                 .error = ERR_NO_ERR,
+                .history = NULL,
+                .pool = (struct Leaf){
+                                .left = NULL,
+                                .right = NULL,
+                                .data.number = 0.0
+                        },
+                .heap = NULL
                 };
+        }
+
+        // initialize pool
+        // 1. generate a space with HEAP_SIZE
+        // 2. initialize the heap
+        // 3. initialize leaf and push into pool
+        calculator->pool.left = &(calculator->pool);
+        calculator->pool.right = &(calculator->pool);
+        
+        // 1. generate a space with HEAP_SIZE
+        rc = posix_memalign((void**)&calculator->heap, 64, HEAP_SIZE); 
+        if (rc != 0)
+        {
+                exit(EXIT_FAILURE);
+        }
+        memset(calculator->heap, 0, HEAP_SIZE);
+        
+        // 2. initialize the heap
+        //    We use first 8 bytes to store the pointer to next free leaf. At this moment we have only one leaf.
+        p_heap = calculator->heap;
+        p_heap->next_heap = NULL;
+
+        // 3. initialize leaf and push into pool
+        //    We start from the second 32 bytes to store the leaf data. In this case, each 64 bytes cache line can store 2 leafs, except the first leaf.
+        for (p = ((unsigned char *)calculator->heap) + 32; p < ((unsigned char *) calculator->heap) + HEAP_SIZE; p += 32)
+        {
+                p_leaf = (struct Leaf *)p;
+                // insert into pool as link list
+                p_leaf->left = calculator->pool.left;
+                p_leaf->right = calculator->pool.right;
+                calculator->pool.left->right = p_leaf;
+                calculator->pool.right->left = p_leaf;
         }
 
         if (history_size != 0)
@@ -91,6 +142,10 @@ struct Calculator *init_calculator(size_t history_size)
 
 double calculate_expr(struct Calculator *h, char *str)
 {
+        double result = 0;
+        int input_index = 0;
+        char *psrc = str;
+        
         if (str == NULL)
         {
                 enum Calc_err err = h->error;
@@ -98,10 +153,6 @@ double calculate_expr(struct Calculator *h, char *str)
                 destroy_calculator(h);
                 exit(err);
         }
-
-        double result = 0;
-        int input_index = 0;
-        char *psrc = str;
 
         while (*psrc != '\0')
         {
@@ -428,13 +479,75 @@ bool is_parenthesis(unsigned char t)
         return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
 
-struct Leaf *make_leaf(char *tk)
+struct Leaf *get_free_leaf(struct Calculator *h, char *tk)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
-        leaf->value = tk;
-        leaf->left = NULL;
-        leaf->right = NULL;
-        return leaf;
+        int rc;
+        struct Leaf *p_leaf = NULL;
+        unsigned char *p;
+        struct CalculatorHeap *p_heap;
+        if (h == NULL)
+        {
+                p_leaf = NULL;
+        };
+
+        // no free leafs, we need to generate a new one heap for new leave
+        if (h->pool.left == h->pool.right)
+        {
+                rc = posix_memalign((void**)&p, 64, HEAP_SIZE);
+                if (rc != 0)
+                {
+                        exit(EXIT_FAILURE);
+                }
+                memset(p, 0, HEAP_SIZE);
+                
+                // Link the new heap to the previous heap
+                p_heap = h->heap;
+                while(p_heap->next_heap != NULL)
+                {
+                        p_heap = (struct CalculatorHeap *) p_heap->next_heap;
+                }
+                p_heap->next_heap = p;
+
+                // initialize the leaf and push into pool
+                p_heap = (struct CalculatorHeap *) p;
+                for (p = ((unsigned char *) p_heap) + 32; p < ((unsigned char *) p_heap) + HEAP_SIZE; p += 32)
+                {
+                        p_leaf = (struct Leaf *)p;
+                        // insert into pool as link list
+                        p_leaf->left = h->pool.left;
+                        p_leaf->right = h->pool.right;
+                        h->pool.left->right = p_leaf;
+                        h->pool.right->left = p_leaf;
+                }
+        }
+
+        // Get a new leaf from pool
+        p_leaf = h->pool.right;
+        p_leaf->left->right = p_leaf->right;
+        p_leaf->right->left = p_leaf->left;
+        p_leaf->left = NULL;
+        p_leaf->right = NULL;
+        p_leaf->value = tk;
+
+EXIT:
+        return p_leaf; 
+}
+
+void recycle_leaf(struct Calculator *h, struct Leaf *p_leaf)
+{
+        p_leaf->left = h->pool.left;
+        p_leaf->right = h->pool.right;
+        h->pool.left->right = p_leaf;
+        h->pool.right->left = p_leaf;
+}
+
+struct Leaf *make_leaf(struct Calculator *h, char *tk)
+{
+        // struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        // leaf->value = tk;
+        // leaf->left = NULL;
+        // leaf->right = NULL;
+        return get_free_leaf(NULL, tk);
 }
 
 struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)

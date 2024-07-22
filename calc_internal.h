@@ -56,20 +56,21 @@ struct Lexer {
     size_t curr;
 };
 
-// #pragma pack(push, 1)
-// struct Leaf
-// {
-//         struct Leaf *left;    // 8 bytes
-//         struct Leaf *right;   // 8 bytes
-//         struct Token value;   // 6 bytes
-// };
-// #pragma pack(pop)
-
-struct Leaf {
-    char *value;
-    struct Leaf *left;
-    struct Leaf *right;
+#pragma pack(push, 1)
+union LeafData // 8 bytes
+{
+        unsigned char value[8];
+        double number;
 };
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct Leaf {
+        struct Leaf *left;   // 8 bytes
+        struct Leaf *right;  // 8 bytes
+        union LeafData data; // 8 bytes
+};
+#pragma pack(pop)
 
 struct History {
     struct Expression **exprs;
@@ -95,7 +96,7 @@ bool is_number(char c);
 struct Leaf *parse_expr(struct Calculator *handler, unsigned char bp);
 struct Leaf *increasing_prec(struct Calculator *handler, struct Leaf *left, unsigned char min_bp);
 struct Leaf *parse_leaf(struct Calculator *handler);
-struct Leaf *make_leaf(char *tk);
+struct Leaf *make_leaf(struct Calculator *handler, char *tk);
 struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right);
 double eval_tree(Calculator *handler, struct Leaf *tree);
 void check_semantics(struct Calculator *handler);
