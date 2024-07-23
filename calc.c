@@ -6,6 +6,12 @@
 #include <assert.h>
 #include <ctype.h>
 
+#define HEAP_SIZE 4096
+struct CalculatorHeap
+{
+        unsigned char *next_heap;
+};
+
 struct Calculator
 {
         struct Lexer *tokens;
@@ -15,20 +21,22 @@ struct Calculator
         enum Calc_err error;
         struct History *history;
         bool history_active;
+        struct Leaf pool;
+        struct CalculatorHeap* heap;
 };
 
 const char *type_names[] = {
-        [UNARY_NEG] = "UNARY_NEG",
-        [UNARY_POS] = "UNARY_POS",
-        [OP_ADD] = "OP_ADD",
-        [OP_SUB] = "OP_SUB",
-        [OP_MUL] = "OP_MUL",
-        [OP_DIV] = "OP_DIV",
-        [OPEN_PARENT] = "OPEN_PARENT",
-        [CLOSE_PARENT] = "CLOSE_PARENT",
-        [LIMIT] = "LIMIT",
-        [NUMBER] = "NUMBER",
-        [UNKNOWN] = "UNKNOWN"
+        [TokenType_UNKNOWN] = "UNKNOWN",
+        [TokenType_UNARY_NEG] = "UNARY_NEG",
+        [TokenType_UNARY_POS] = "UNARY_POS",
+        [TokenType_OP_ADD] = "OP_ADD",
+        [TokenType_OP_SUB] = "OP_SUB",
+        [TokenType_OP_MUL] = "OP_MUL",
+        [TokenType_OP_DIV] = "OP_DIV",
+        [TokenType_OPEN_PARENT] = "OPEN_PARENT",
+        [TokenType_CLOSE_PARENT] = "CLOSE_PARENT",
+        [TokenType_LIMIT] = "LIMIT",
+        [TokenType_NUMBER] = "NUMBER",
 };
 
 char *calc_err_msg [] =
@@ -41,14 +49,62 @@ char *calc_err_msg [] =
 
 struct Calculator *init_calculator(size_t history_size)
 {
-        struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
-        *calculator = (struct Calculator){
+        int rc;
+        struct CalculatorHeap *p_heap;
+        struct Calculator *calculator = NULL;
+        unsigned char *p;
+        struct Leaf *p_leaf; 
+        calculator = calc_malloc(sizeof(struct Calculator));
+
+        if (calculator)
+        {
+                *calculator = (struct Calculator){
                 .tokens = NULL,
                 .input = NULL,
                 .tree = NULL,
                 .input_len = 0,
                 .error = ERR_NO_ERR,
-        };
+                .history = NULL,
+                .pool = (struct Leaf){
+                                .left = NULL,
+                                .right = NULL,
+                                .data.number = 0.0
+                        },
+                .heap = NULL
+                };
+        }
+
+        // initialize pool
+        // 1. generate a space with HEAP_SIZE
+        // 2. initialize the heap
+        // 3. initialize leaf and push into pool
+        calculator->pool.left = &(calculator->pool);
+        calculator->pool.right = &(calculator->pool);
+        
+        // 1. generate a space with HEAP_SIZE
+        rc = posix_memalign((void**)&calculator->heap, 64, HEAP_SIZE); 
+        if (rc != 0)
+        {
+                exit(EXIT_FAILURE);
+        }
+        memset(calculator->heap, 0, HEAP_SIZE);
+        
+        // 2. initialize the heap
+        //    We use first 8 bytes to store the pointer to next free leaf. At this moment we have only one leaf.
+        p_heap = calculator->heap;
+        p_heap->next_heap = NULL;
+
+        // 3. initialize leaf and push into pool
+        //    We start from the second 32 bytes to store the leaf data. In this case, each 64 bytes cache line can store 2 leafs, except the first leaf.
+        for (p = ((unsigned char *)calculator->heap) + 32; p < ((unsigned char *) calculator->heap) + HEAP_SIZE; p += 32)
+        {
+                p_leaf = (struct Leaf *)p;
+                // insert into pool as link list
+                p_leaf->left = calculator->pool.left;
+                p_leaf->right = calculator->pool.right;
+                calculator->pool.left->right = p_leaf;
+                calculator->pool.right->left = p_leaf;
+        }
 
         if (history_size != 0)
         {
@@ -73,13 +129,23 @@ struct Calculator *init_calculator(size_t history_size)
                 }
         }
         else
-                calculator->history_active = false;
+        {
+                if (calculator)
+                {
+                        free(calculator);
+                        calculator = NULL;
+                }
+        }
 
         return calculator;
 }
 
 double calculate_expr(struct Calculator *h, char *str)
 {
+        double result = 0;
+        int input_index = 0;
+        char *psrc = str;
+        
         if (str == NULL)
         {
                 enum Calc_err err = h->error;
@@ -87,10 +153,6 @@ double calculate_expr(struct Calculator *h, char *str)
                 destroy_calculator(h);
                 exit(err);
         }
-
-        double result = 0;
-        int input_index = 0;
-        char *psrc = str;
 
         while (*psrc != '\0')
         {
@@ -120,7 +182,7 @@ double calculate_expr(struct Calculator *h, char *str)
         h->tokens = initialize_tokens(h);
         make_tokens(h);
         check_semantics(h);
-        h->tree = parse_expr(h, MIN_LIMIT);
+        h->tree = parse_expr(h, BP_MIN_LIMIT);
 
         result = eval_tree(h, h->tree);
 
@@ -260,7 +322,7 @@ int make_tokens(struct Calculator *h)
         struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < h->input_len; i++)
         {
-                enum Type t = get_type(h->input[i]);
+                unsigned char t = get_type(h->input[i]);
                 add_token(h, &i, t, tks_readed);
                 tks_readed++;
         }
@@ -270,10 +332,10 @@ int make_tokens(struct Calculator *h)
         return tks_readed;
 }
 
-void add_token(struct Calculator *h, size_t *i, enum Type t, size_t tokens_pos) 
+void add_token(struct Calculator *h, size_t *i, unsigned char  t, size_t tokens_pos) 
 {
         struct Lexer *tokens = h->tokens;
-        if (t == NUMBER)
+        if (t == TokenType_NUMBER)
         {
                 size_t size = 0;
                 const char *p_input = &(h->input[*i]);
@@ -344,41 +406,41 @@ char peek(struct Calculator *h)
         return DELIMITER;
 }
 
-enum Type get_type(char c) 
+unsigned char get_type(char c) 
 {
 
         switch (c) 
         {
                 case '+':
-                        return OP_ADD;
+                        return TokenType_OP_ADD;
                 case '-':
-                        return OP_SUB;
+                        return TokenType_OP_SUB;
                 case '*':
-                        return OP_MUL;
+                        return TokenType_OP_MUL;
                 case '/':
-                        return OP_DIV;
+                        return TokenType_OP_DIV;
                 case '(':
-                        return OPEN_PARENT;
+                        return TokenType_OPEN_PARENT;
                 case ')':
-                        return CLOSE_PARENT;
+                        return TokenType_CLOSE_PARENT;
                 case '?':
-                        return LIMIT;
+                        return TokenType_LIMIT;
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                        return NUMBER;
+                        return TokenType_NUMBER;
                 default:
-                        return UNKNOWN;
+                        return TokenType_UNKNOWN;
         }
 }
 
-enum Bp get_bp(char c) 
+unsigned char get_bp(char c) 
 {
 
         switch (c) 
         {
                 case ')':
                 case '(':
-                        return MIN_LIMIT;
+                        return BP_MIN_LIMIT;
                 case '+':
                 case '-':
                         return BP_ADD_SUB;
@@ -398,32 +460,94 @@ bool is_number(char c)
         return isdigit(c) || c == '.';
 }
 
-bool is_operator(enum Type t)
+bool is_operator(unsigned char t)
 {
         switch (t)
         {
-                case OP_ADD:
-                case OP_SUB:
-                case OP_MUL:
-                case OP_DIV:
+                case TokenType_OP_ADD:
+                case TokenType_OP_SUB:
+                case TokenType_OP_MUL:
+                case TokenType_OP_DIV:
                         return true;
                 default:
                         return false;
         }
 }
 
-bool is_parenthesis(enum Type t)
+bool is_parenthesis(unsigned char t)
 {
-        return (t == OPEN_PARENT || t == CLOSE_PARENT);
+        return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
 
-struct Leaf *make_leaf(char *tk)
+struct Leaf *get_free_leaf(struct Calculator *h, char *tk)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
-        leaf->value = tk;
-        leaf->left = NULL;
-        leaf->right = NULL;
-        return leaf;
+        int rc;
+        struct Leaf *p_leaf = NULL;
+        unsigned char *p;
+        struct CalculatorHeap *p_heap;
+        if (h == NULL)
+        {
+                p_leaf = NULL;
+        };
+
+        // no free leafs, we need to generate a new one heap for new leave
+        if (h->pool.left == h->pool.right)
+        {
+                rc = posix_memalign((void**)&p, 64, HEAP_SIZE);
+                if (rc != 0)
+                {
+                        exit(EXIT_FAILURE);
+                }
+                memset(p, 0, HEAP_SIZE);
+                
+                // Link the new heap to the previous heap
+                p_heap = h->heap;
+                while(p_heap->next_heap != NULL)
+                {
+                        p_heap = (struct CalculatorHeap *) p_heap->next_heap;
+                }
+                p_heap->next_heap = p;
+
+                // initialize the leaf and push into pool
+                p_heap = (struct CalculatorHeap *) p;
+                for (p = ((unsigned char *) p_heap) + 32; p < ((unsigned char *) p_heap) + HEAP_SIZE; p += 32)
+                {
+                        p_leaf = (struct Leaf *)p;
+                        // insert into pool as link list
+                        p_leaf->left = h->pool.left;
+                        p_leaf->right = h->pool.right;
+                        h->pool.left->right = p_leaf;
+                        h->pool.right->left = p_leaf;
+                }
+        }
+
+        // Get a new leaf from pool
+        p_leaf = h->pool.right;
+        p_leaf->left->right = p_leaf->right;
+        p_leaf->right->left = p_leaf->left;
+        p_leaf->left = NULL;
+        p_leaf->right = NULL;
+        p_leaf->value = tk;
+
+EXIT:
+        return p_leaf; 
+}
+
+void recycle_leaf(struct Calculator *h, struct Leaf *p_leaf)
+{
+        p_leaf->left = h->pool.left;
+        p_leaf->right = h->pool.right;
+        h->pool.left->right = p_leaf;
+        h->pool.right->left = p_leaf;
+}
+
+struct Leaf *make_leaf(struct Calculator *h, char *tk)
+{
+        // struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        // leaf->value = tk;
+        // leaf->left = NULL;
+        // leaf->right = NULL;
+        return get_free_leaf(NULL, tk);
 }
 
 struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
@@ -444,18 +568,18 @@ struct Leaf *parse_leaf(struct Calculator *h)
         if (tk == NULL)
                 return leaf;
 
-        enum Type t = get_type(*tk);
+        unsigned char t = get_type(*tk);
 
         /* checks if is a unary operator */
-        if (t == OP_ADD || t == OP_SUB)
+        if (t == TokenType_OP_ADD || t == TokenType_OP_SUB)
         {
                 struct Leaf *right = parse_leaf(h); 
                 leaf = make_leaf(tk);
                 leaf->right = right;
         }
-        else if (t == OPEN_PARENT)
+        else if (t == TokenType_OPEN_PARENT)
         {
-                leaf = parse_expr(h, MIN_LIMIT);
+                leaf = parse_expr(h, BP_MIN_LIMIT);
                 /* consumes close parenthesis */
                 get_next(h); 
         }
@@ -465,7 +589,7 @@ struct Leaf *parse_leaf(struct Calculator *h)
         return leaf;
 }
 
-struct Leaf *parse_expr(struct Calculator *h, enum Bp bp)
+struct Leaf *parse_expr(struct Calculator *h, unsigned char  bp)
 {
         struct Leaf *left = parse_leaf(h);
         struct Leaf *node = NULL;
@@ -481,17 +605,17 @@ struct Leaf *parse_expr(struct Calculator *h, enum Bp bp)
         return left;
 }
 
-struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, enum Bp min_bp)
+struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, unsigned char min_bp)
 {
         char next = peek(h);
-        enum Type t = get_type(next);
-        enum Bp bp = get_bp(next);
+        unsigned char t = get_type(next);
+        unsigned char  bp = get_bp(next);
 
 
-        if (next == DELIMITER || t == CLOSE_PARENT)
+        if (next == DELIMITER || t == TokenType_CLOSE_PARENT)
                 return left;
 
-        if  (t == OPEN_PARENT && is_number(*left->value))
+        if  (t == TokenType_OPEN_PARENT && is_number(*left->value))
         {
                 h->tokens->chars[h->tokens->curr][0] = '*';
                 next = peek(h);
@@ -509,7 +633,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, enum Bp min
                         next = peek(h);
                         t = get_type(next);
 
-                        if (next == DELIMITER || t == CLOSE_PARENT)
+                        if (next == DELIMITER || t == TokenType_CLOSE_PARENT)
                                 break;
                 }
         }
@@ -526,9 +650,9 @@ void check_semantics(struct Calculator *h)
 
         for (size_t i = 0; i < h->tokens->len; i++)
         {
-                enum Type curr_t = get_type(*tokens->chars[i]);
+                unsigned char curr_t = get_type(*tokens->chars[i]);
 
-                if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
+                if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV))
                         dead(h, ERR_SYNTAX);
 
                 if (is_number(*tokens->chars[i]))
@@ -542,10 +666,10 @@ void check_semantics(struct Calculator *h)
                         if (is_operator(curr_t)) 
                                 dead(h, ERR_SYNTAX);
 
-                        if (curr_t == LIMIT)
+                        if (curr_t == TokenType_LIMIT)
                                 dead(h, ERR_SYNTAX);
 
-                        if (curr_t == CLOSE_PARENT)
+                        if (curr_t == TokenType_CLOSE_PARENT)
                                 dead(h, ERR_SYNTAX);
                 }
 
@@ -559,9 +683,9 @@ double eval_tree(Calculator *h, struct Leaf *tree)
         assert(tree->value != NULL);
 
         double lhs = 0.0, rhs = 0.0;
-        enum Type t = get_type(*tree->value);
+        unsigned char t = get_type(*tree->value);
 
-        if (t == NUMBER) 
+        if (t == TokenType_NUMBER) 
                 return strtod(tree->value, NULL);
 
         lhs = tree->left != NULL ? eval_tree(h, tree->left) : 0;
@@ -569,18 +693,18 @@ double eval_tree(Calculator *h, struct Leaf *tree)
 
         switch (t) 
         {
-                case OP_ADD:
+                case TokenType_OP_ADD:
                         return lhs + rhs;
-                case OP_SUB:
+                case TokenType_OP_SUB:
                         return lhs - rhs;
-                case OP_MUL:
+                case TokenType_OP_MUL:
                         return lhs * rhs;
-                case OP_DIV:
+                case TokenType_OP_DIV:
                         if (rhs == 0)
                                 dead(h, ERR_DIVIDE_BY_ZERO);
 
                         return lhs / rhs;
-                case UNARY_NEG:
+                case TokenType_UNARY_NEG:
                         return -rhs;
                 default:
                         dead(h, ERR_UNKNOWN_OPERATOR);
@@ -633,6 +757,17 @@ char *error_message(Calculator *h)
 
 void destroy_calculator(Calculator *h)
 {
+		unsigned char *p, *p_next;
+        if (h == NULL)
+                return;
+
+		// free the heaps
+		p = (unsigned char *) h->heap;
+		while (p != NULL)
+		{
+			p_next = (unsigned char *) ((struct CalculatorHeap *) p)->next_heap;
+			p = p_next;
+		}
 
         if (h->history_active)
         {

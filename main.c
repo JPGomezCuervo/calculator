@@ -8,6 +8,12 @@ int main(int argsc, char **argsv)
         /* number of history elements */
         Calculator *calculator = init_calculator(5);
 
+        if (!calculator)
+        {
+                printf("Failed to initialize calculator\n");
+                return 1;
+        }
+
         double result = calculate_expr(calculator, argsv[1]);
         Expression **history = get_history(calculator);
 
