@@ -757,8 +757,17 @@ char *error_message(Calculator *h)
 
 void destroy_calculator(Calculator *h)
 {
+		unsigned char *p, *p_next;
         if (h == NULL)
                 return;
+
+		// free the heaps
+		p = (unsigned char *) h->heap;
+		while (p != NULL)
+		{
+			p_next = (unsigned char *) ((struct CalculatorHeap *) p)->next_heap;
+			p = p_next;
+		}
 
         if (h->history_active)
         {
