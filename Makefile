@@ -13,3 +13,5 @@ $(BINARY): $(OBJECTS)
 %.o:%.c calc.h calc_internal.h
 	$(CC) $(FLAGS) -c -o $@ $<
 
+clean:
+	rm $(BINARY) $(OBJECTS)
