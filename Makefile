@@ -1,6 +1,6 @@
 CC = gcc
 OP =  -o0
-FLAGS = -Wall -Wextra -pedantic -ggdb -Wunused-function -Wmissing-prototypes
+FLAGS = -Wall -Wextra -pedantic -ggdb -Wunused-function -Wmissing-prototypes -Wunreachable-code -Wmissing-declarations -Wshadow -Wcast-align
 OBJECTS = main.o calc.o
 CFILES = main.c calc.c
 BINARY = calc
