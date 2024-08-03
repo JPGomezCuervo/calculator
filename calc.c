@@ -259,8 +259,14 @@ int make_tokens(struct Calculator *h)
         struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < h->input_len; i++)
         {
-                token_type t = get_type_from_char(h->input[i]);
-                add_token(h, &i, t, tks_readed);
+                token_type t = get_type(
+                                (struct Data){
+                                .is_number = false,
+                                .val = {.sign = {h->input[i], '\0'}}
+                                }
+                                );
+
+                add_token(h, &i, t);
                 tks_readed++;
         }
         tokens->data = calc_realloc(tokens->data, sizeof(struct Data*) * tks_readed);
@@ -270,7 +276,7 @@ int make_tokens(struct Calculator *h)
         return tks_readed;
 }
 
-void add_token(struct Calculator *h, size_t *i, token_type t, size_t tokens_pos) 
+void add_token(struct Calculator *h, size_t *i, token_type t) 
 {
         struct Lexer *tokens = h->tokens;
         struct Data **data_array = tokens->data;
@@ -315,7 +321,7 @@ void debug_tokens(struct Calculator *h)
         struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < tokens->len; i++)
         {
-                token_type t = get_type_from_data(*tokens->data[i]);
+                token_type t = get_type(*tokens->data[i]);
                 if (t == TokenType_NUMBER)
                 {
                         printf("index: %zu, Value: %2.f, Type: %s, Precedence: %d\n", 
@@ -341,7 +347,7 @@ struct Data *get_next(struct Calculator *h)
 {
         struct Lexer *tokens = h->tokens;
         assert(tokens != NULL);
-        token_type curr_t = get_type_from_data(*tokens->data[tokens->curr]); 
+        token_type curr_t = get_type(*tokens->data[tokens->curr]); 
 
         struct Data *pc = NULL;
         if (curr_t != TokenType_LIMIT)
@@ -357,38 +363,11 @@ struct Data peek(struct Calculator *h)
 {
         struct Lexer *tokens = h->tokens;
         assert(tokens != NULL);
-        token_type curr_t = get_type_from_data(*tokens->data[tokens->curr]); 
 
         return *tokens->data[tokens->curr];
 }
 
-token_type get_type_from_char(char c) 
-{
-
-        switch (c) 
-        {
-                case '+':
-                        return TokenType_OP_ADD;
-                case '-':
-                        return TokenType_OP_SUB;
-                case '*':
-                        return TokenType_OP_MUL;
-                case '/':
-                        return TokenType_OP_DIV;
-                case '(':
-                        return TokenType_OPEN_PARENT;
-                case ')':
-                        return TokenType_CLOSE_PARENT;
-                case '?':
-                        return TokenType_LIMIT;
-                case '0': case '1': case '2': case '3': case '4':
-                case '5': case '6': case '7': case '8': case '9':
-                        return TokenType_NUMBER;
-                default:
-                        return TokenType_UNKNOWN;
-        }
-}
-token_type get_type_from_data(struct Data c) 
+token_type get_type(struct Data c) 
 {
 
         if (c.is_number) 
@@ -410,6 +389,9 @@ token_type get_type_from_data(struct Data c)
                         return TokenType_CLOSE_PARENT;
                 case '?':
                         return TokenType_LIMIT;
+                case '0': case '1': case '2': case '3': case '4':
+                case '5': case '6': case '7': case '8': case '9':
+                        return TokenType_NUMBER;
                 default:
                         return TokenType_UNKNOWN;
         }
@@ -456,7 +438,7 @@ bool is_operator(token_type t)
         }
 }
 
-bool is_parenthesis(token_type t)
+inline bool is_parenthesis(token_type t)
 {
         return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
@@ -488,7 +470,7 @@ struct Leaf *parse_leaf(struct Calculator *h)
         if (tk == NULL)
                 return leaf;
 
-        token_type t = get_type_from_data(*tk);
+        token_type t = get_type(*tk);
 
         /* checks if is a unary operator */
         if (t == TokenType_OP_ADD || t == TokenType_OP_SUB)
@@ -528,7 +510,7 @@ struct Leaf *parse_expr(struct Calculator *h, binary_power b)
 struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_power min_bp)
 {
         struct Data next = peek(h);
-        token_type t = get_type_from_data(next);
+        token_type t = get_type(next);
         binary_power bp = get_bp(next);
 
 
@@ -545,7 +527,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
 
                 h->tokens->data[h->tokens->curr] = &new_data; 
                 next = peek(h);
-                t = get_type_from_data(next);
+                t = get_type(next);
                 bp = get_bp(next);
         }
 
@@ -557,7 +539,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
                         struct Leaf *right = parse_expr(h, bp);
                         left = make_binary_expr(op,left, right);
                         next = peek(h);
-                        t = get_type_from_data(next);
+                        t = get_type(next);
 
                         if (t == TokenType_LIMIT || t == TokenType_CLOSE_PARENT)
                                 break;
@@ -579,7 +561,7 @@ void check_semantics(struct Calculator *h)
                 if (tokens->data[i]->is_number)
                         curr_t = TokenType_NUMBER;
                 else
-                        curr_t = get_type_from_data(*tokens->data[i]);
+                        curr_t = get_type(*tokens->data[i]);
 
                 if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV))
                         dead(h, ERR_SYNTAX);
@@ -611,7 +593,7 @@ double eval_tree(Calculator *h, struct Leaf *tree)
         assert(tree != NULL);
 
         double lhs = 0.0, rhs = 0.0;
-        token_type t = get_type_from_data(tree->data);
+        token_type t = get_type(tree->data);
 
         if (t == TokenType_NUMBER) 
                 return tree->data.val.number;
