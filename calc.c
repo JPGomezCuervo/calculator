@@ -1,10 +1,14 @@
 #include "calc_internal.h"
 #include "calc.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+
+#define HEAP_SIZE 4096
+#define ALIGNMENT 64
 
 struct Calculator
 {
@@ -39,18 +43,52 @@ char *calc_err_msg [] =
         [ERR_DIVIDE_BY_ZERO] = "division by zero",
         [ERR_UNKNOWN_OPERATOR] = "unknown operator",
         [ERR_SYNTAX] = "invalid syntax",
+        [ERR_HEAP_ALLOC] = "failed heap alloc",
 };
 
 struct Calculator *init_calculator(size_t history_size)
 {
         struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
+        uint8_t *p_pool = NULL;
+        struct Calculator_heap *p_heap = NULL;
+        struct Leaf *p_leaf = NULL;
+        int rc = 0;
+
         *calculator = (struct Calculator){
                 .tokens = NULL,
                         .input = NULL,
                         .tree = NULL,
                         .input_len = 0,
                         .error = ERR_NO_ERR,
+                        .heap = NULL,
+                        .pool =
+                        {
+                                .data = {.is_number = true, .val.number = 0.0},
+                                .left = &calculator->pool,
+                                .right = &calculator->pool,
+                        }
         };
+
+        rc = posix_memalign((void**)&(calculator->heap), ALIGNMENT, HEAP_SIZE);
+
+        if (rc != 0)
+                exit(ERR_HEAP_ALLOC);
+
+        memset(calculator->heap, 0, HEAP_SIZE);
+
+        p_heap = calculator->heap;
+        p_heap->next_heap = NULL;
+
+        p_pool = (uint8_t*) p_heap + 32;
+
+        for (; p_pool < ((uint8_t*) p_heap) + HEAP_SIZE; p_pool += 32)
+        {
+                p_leaf = (struct Leaf *) p_pool;
+                p_leaf->right = calculator->pool.right;
+                p_leaf->left = calculator->pool.left;
+                calculator->pool.left->right = p_leaf;
+                calculator->pool.right->left = p_leaf;
+        }
 
         if (history_size != 0)
         {
@@ -153,6 +191,54 @@ double calculate_expr(struct Calculator *h, char *str)
         return result;
 }
 
+struct Leaf *get_free_leaf(Calculator *h)
+{
+        int rc = 0;
+        struct Leaf *p_leaf = NULL;
+        struct Calculator_heap *p_heap = NULL;
+        uint8_t *p = NULL;
+        
+        if (h->pool.left == h->pool.right)
+        {
+                rc = posix_memalign((void**)&p, ALIGNMENT, HEAP_SIZE);
+
+                if (rc != 0)
+                        exit(ERR_HEAP_ALLOC);
+                p_heap = h->heap;
+
+                while (p_heap->next_heap != NULL)
+                {
+                        p_heap = (struct Calculator_heap *)p_heap->next_heap;
+                }
+
+                p_heap->next_heap = p;
+
+                p = p + 32;
+                
+                for (; p < ((uint8_t *) p_heap->next_heap) + HEAP_SIZE ; p += 32) 
+                {
+                        p_leaf = (struct Leaf *) p;
+                        p_leaf->right = h->pool.right;
+                        p_leaf->left = h->pool.left;
+                        h->pool.left->right = p_leaf;
+                        h->pool.right->left = p_leaf;
+                }
+        }
+
+        p_leaf = h->pool.right;
+        h->pool.right = p_leaf->right;
+        p_leaf->right = p_leaf->left;
+
+        return p_leaf;
+}
+
+void recycle_leaf(struct Calculator *h, struct Leaf *p_leaf)
+{
+        p_leaf->left = p_leaf;
+        p_leaf->right = h->pool.right;
+        h->pool.right = p_leaf;
+}
+
 void dead(Calculator *h, error_code err)
 {
         fprintf(stderr, "ERROR: ");
@@ -205,14 +291,14 @@ void calc_log(char *message, const char *function, int line)
         printf("%s at %s::line %d", message, function, line);
 }
 
-void free_tree(struct Leaf *tree)
+void free_tree(struct Calculator *h, struct Leaf *tree)
 {
         if (!tree)
                 return;
-        free_tree(tree->right);
-        free_tree(tree->left);
+        free_tree(h, tree->right);
+        free_tree(h, tree->left);
 
-        free(tree);
+        recycle_leaf(h, tree);
 }
 
 void calc_cleanup(struct Calculator *h)
@@ -239,7 +325,7 @@ void calc_cleanup(struct Calculator *h)
 
         if (h->tree)
         {
-                free_tree(h->tree);
+                free_tree(h, h->tree);
                 h->tree = NULL;
         }
 }
@@ -443,18 +529,18 @@ inline bool is_parenthesis(token_type t)
         return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
 
-struct Leaf *make_leaf(struct Data *tk)
+struct Leaf *make_leaf(struct Calculator *h, struct Data *tk)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        struct Leaf *leaf = get_free_leaf(h);
         leaf->data = *tk;
         leaf->left = NULL;
         leaf->right = NULL;
         return leaf;
 }
 
-struct Leaf *make_binary_expr(struct Data *op, struct Leaf *left, struct Leaf *right)
+struct Leaf *make_binary_expr(struct Calculator *h, struct Data *op, struct Leaf *left, struct Leaf *right)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
+        struct Leaf *leaf = get_free_leaf(h);
         leaf->data = *op;
         leaf->left = left;
         leaf->right = right;
@@ -476,7 +562,7 @@ struct Leaf *parse_leaf(struct Calculator *h)
         if (t == TokenType_OP_ADD || t == TokenType_OP_SUB)
         {
                 struct Leaf *right = parse_leaf(h); 
-                leaf = make_leaf(tk);
+                leaf = make_leaf(h, tk);
                 leaf->right = right;
         }
         else if (t == TokenType_OPEN_PARENT)
@@ -486,7 +572,7 @@ struct Leaf *parse_leaf(struct Calculator *h)
                 get_next(h); 
         }
         else 
-                leaf = make_leaf(tk);
+                leaf = make_leaf(h, tk);
 
         return leaf;
 }
@@ -537,7 +623,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
                 {
                         struct Data *op = get_next(h);
                         struct Leaf *right = parse_expr(h, bp);
-                        left = make_binary_expr(op,left, right);
+                        left = make_binary_expr(h, op,left, right);
                         next = peek(h);
                         t = get_type(next);
 
@@ -671,6 +757,9 @@ char *error_message(Calculator *h)
 void destroy_calculator(Calculator *h)
 {
 
+        uint8_t *p, *p_next;
+        p = (uint8_t*) h->heap;
+
         if (h->history_active)
         {
                 for (size_t i = 0; i < h->history->capacity; i++) 
@@ -680,6 +769,13 @@ void destroy_calculator(Calculator *h)
                 }
                 free(h->history->exprs);
                 free(h->history);
+        }
+
+        while (p != NULL)
+        {
+                p_next = (uint8_t *)((struct Calculator_heap *)p)->next_heap;
+                free(p);
+                p = p_next;
         }
 
         free(h);
