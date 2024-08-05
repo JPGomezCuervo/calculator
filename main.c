@@ -34,6 +34,12 @@ int main(int argsc, char **argsv)
                         {
                                 add_history(line);
                                 char *new_line = replace_id_with_value(calculator, line);
+                                if (new_line == NULL)
+                                {
+                                        free(line);
+                                        continue;
+                                }
+
                                 double result = calculate_expr(calculator, new_line);
                                 history_len = get_history_len(calculator);
 
@@ -124,7 +130,7 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
                         else 
                         {
                                 printf("ERROR: variable $%zu not found\n", id);
-                                return line;
+                                return NULL;
                         }
                         free(expr->expr);
                         free(expr);
