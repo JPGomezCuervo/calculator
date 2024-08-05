@@ -70,7 +70,6 @@ int main(int argsc, char **argsv)
 
 /* shifts and replace $id with the actual value
  * this is an example of using the history, is not part of the main library
- * TODO: sync history size with the id's available
  * */
 char *replace_id_with_value(struct Calculator *handler, char *line)
 {
@@ -134,10 +133,17 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
                                 new_line[len] = '\0';
                                 pos = pos + id_len + 1;
                         }
-
+                        else 
+                        {
+                                printf("ERROR: variable $%zu not found\n", id);
+                                return line;
+                        }
                         free(expr->expr);
                         free(expr);
                 }
+                else 
+                        return line;
+
                 pos = strchr(pos, '$');
         }
 
