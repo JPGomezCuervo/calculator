@@ -120,6 +120,7 @@ struct Calculator *init_calculator(size_t history_size)
 
 double calculate_expr(struct Calculator *h, char *str)
 {
+        h->error = ERR_NO_ERR;
         if (str == NULL)
         {
                 error_code err = h->error;
@@ -131,6 +132,7 @@ double calculate_expr(struct Calculator *h, char *str)
         double result = 0;
         int input_index = 0;
         char *psrc = str;
+        error_code rc;
 
         while (*psrc != '\0')
         {
@@ -159,7 +161,10 @@ double calculate_expr(struct Calculator *h, char *str)
 
         h->tokens = initialize_tokens(h);
         make_tokens(h);
-        check_semantics(h);
+        rc = check_semantics(h);
+        if (rc != 0)
+                return 0.00;
+
         h->tree = parse_expr(h, BP_MIN_LIMIT);
 
         result = eval_tree(h, h->tree);
@@ -239,11 +244,12 @@ void recycle_leaf(struct Calculator *h, struct Leaf *p_leaf)
         h->pool.right = p_leaf;
 }
 
-void dead(Calculator *h, error_code err)
+error_code dead(Calculator *h, error_code err)
 {
         fprintf(stderr, "ERROR: ");
         fprintf(stderr, "%s\n", calc_err_msg[err]);
         h->error = err;
+        return err;
 }
 
 void *calc_malloc(size_t len)
@@ -634,7 +640,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
         return left;
 }
 
-void check_semantics(struct Calculator *h)
+error_code check_semantics(struct Calculator *h)
 {
         assert(h != NULL);
         struct Lexer *tokens = h->tokens;
@@ -644,13 +650,14 @@ void check_semantics(struct Calculator *h)
         for (size_t i = 0; i < h->tokens->len; i++)
         {
                 token_type curr_t; 
+
                 if (tokens->data[i]->is_number)
                         curr_t = TokenType_NUMBER;
                 else
                         curr_t = get_type(*tokens->data[i]);
 
                 if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV))
-                        dead(h, ERR_SYNTAX);
+                        return dead(h, ERR_SYNTAX);
 
                 if (curr_t == TokenType_NUMBER)
                 {
@@ -661,17 +668,18 @@ void check_semantics(struct Calculator *h)
                 if (was_operator)
                 {
                         if (is_operator(curr_t)) 
-                                dead(h, ERR_SYNTAX);
+                                return dead(h, ERR_SYNTAX);
 
                         if (curr_t == TokenType_LIMIT)
-                                dead(h, ERR_SYNTAX);
+                                return dead(h, ERR_SYNTAX);
 
                         if (curr_t == TokenType_CLOSE_PARENT)
-                                dead(h, ERR_SYNTAX);
+                                return dead(h, ERR_SYNTAX);
                 }
 
                 was_operator = is_operator(curr_t);
         }
+        return ERR_NO_ERR;
 }
 
 double eval_tree(Calculator *h, struct Leaf *tree)
