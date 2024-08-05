@@ -68,8 +68,7 @@ int main(int argsc, char **argsv)
         return 0;
 }
 
-/* clumsy implementation that shifts and replace $id with the actual value
- * needs to improve...
+/* shifts and replace $id with the actual value
  * this is an example of using the history, is not part of the main library
  * TODO: sync history size with the id's available
  * */
@@ -110,12 +109,17 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
                                 size_t value_len = strlen(value_str);
                                 size_t id_len = snprintf(NULL, 0, "%zu", id);
 
-                                /*checks if the buff size is enough for containing 
-                                 * the string with the replacements*/
-                                if (!(value_len + len - id_len + 1 < buff_size))
-                                {
-                                        buff_size *= buff_size;
+                                /* Checks if the buffer size is enough for containing
+                                 * the string with the replacements */
+                                while (value_len + len - id_len + 1 >= buff_size) {
+                                        buff_size *= 2;
+                                        size_t offset_pos = pos - new_line;
                                         new_line = realloc(new_line, buff_size);
+                                        if (!new_line) {
+                                                perror("Failed to realloc memory");
+                                                exit(EXIT_FAILURE);
+                                        }
+                                        pos = new_line + offset_pos;
                                 }
 
                                 /* Shifts characters to the right to make space for the new value.
@@ -128,12 +132,13 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
                                 memcpy(pos, value_str, value_len);
                                 len += value_len - id_len - 1;
                                 new_line[len] = '\0';
+                                pos = pos + id_len + 1;
                         }
 
                         free(expr->expr);
                         free(expr);
                 }
-                pos = strstr(pos + 1, "$");
+                pos = strchr(pos, '$');
         }
 
         return new_line;
