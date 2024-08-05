@@ -51,6 +51,9 @@ int main(int argsc, char **argsv)
 
                                 if (!get_error_code(calculator))
                                         printf("$%zu = %.2f\n",history[history_len - 1]->id, result);
+
+                                if (new_line != line)
+                                        free(new_line);
                         }
                         free(line);
                 }
