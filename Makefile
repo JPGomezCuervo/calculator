@@ -5,6 +5,7 @@ OBJECTS = main.o calc.o
 CFILES = main.c calc.c
 BINARY = calc
 LIBS = -lreadline
+INSTALL_PATH = /usr/local/bin
 
 all: $(BINARY)
 
@@ -13,6 +14,9 @@ $(BINARY): $(OBJECTS)
 
 %.o:%.c calc.h calc_internal.h
 	$(CC) $(FLAGS) -c -o $@ $<
+
+install: $(BINARY)
+	install -m 0755 $(BINARY) $(INSTALL_PATH)
 
 clean:
 	rm $(BINARY) $(OBJECTS)
