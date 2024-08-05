@@ -96,7 +96,9 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
         while (pos)
         {
                 size_t id;
-                if (sscanf(pos + 1, "%zu", &id) == 1) {
+                size_t tail_len;
+                if (sscanf(pos + 1, "%zu", &id) == 1) 
+                {
                         struct Expression *expr = get_history_by_id(handler, id);
                         if (expr) 
                         {
@@ -105,13 +107,21 @@ char *replace_id_with_value(struct Calculator *handler, char *line)
                                 size_t value_len = strlen(value_str);
                                 size_t id_len = snprintf(NULL, 0, "%zu", id);
 
-                                if (!(value_len + len - id_len - 1 + 1 < buff_size))
+                                /*checks if the buff size is enough for containing 
+                                 * the string with the replacements*/
+                                if (!(value_len + len - id_len + 1 < buff_size))
                                 {
                                         buff_size *= buff_size;
                                         new_line = realloc(new_line, buff_size);
                                 }
 
-                                memmove(pos + value_len, pos + id_len + 1, len - id_len + 1);
+                                /* Shifts characters to the right to make space for the new value.
+                                 * Specifically, move characters from the position after the variable
+                                 * $id to the end of the string, to accommodate the new value.
+                                 * After shifting, replace the $id placeholder with the actual value
+                                 * */
+                                tail_len = strlen(pos + id_len + 1);
+                                memmove(pos + value_len, pos + id_len + 1, tail_len + 1);
                                 memcpy(pos, value_str, value_len);
                                 len += value_len - id_len - 1;
                                 new_line[len] = '\0';
