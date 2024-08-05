@@ -373,6 +373,7 @@ void add_token(struct Calculator *h, size_t *i, token_type t)
         struct Lexer *tokens = h->tokens;
         struct Data **data_array = tokens->data;
         struct Data *current_data = NULL;
+        bool decimal_mark = false;
 
         if (t == TokenType_NUMBER)
         {
@@ -382,6 +383,13 @@ void add_token(struct Calculator *h, size_t *i, token_type t)
 
                 while (is_number(*p_input) && *i < h->input_len)
                 {
+                        /* checks if the number has more than one decimal mark*/
+                        if (*p_input == '.')
+                        {
+                                if (decimal_mark)
+                                        dead(h, ERR_SYNTAX);
+                                decimal_mark = true;
+                        }
                         iterations++;
                         p_input++;
                 }
