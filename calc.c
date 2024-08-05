@@ -164,9 +164,7 @@ double calculate_expr(struct Calculator *h, char *str)
         rc = check_semantics(h);
         if (rc != 0)
                 return 0.00;
-
         h->tree = parse_expr(h, BP_MIN_LIMIT);
-
         result = eval_tree(h, h->tree);
 
         if (h->history_active)
@@ -617,15 +615,10 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
         if (t == TokenType_LIMIT|| t == TokenType_CLOSE_PARENT)
                 return left;
 
-        if  (t == TokenType_OPEN_PARENT && t == TokenType_NUMBER)
+        if  (t == TokenType_OPEN_PARENT && left->data.is_number)
         {
-                struct Data new_data =
-                {
-                        .is_number = false,
-                        .val.sign = "*",
-                };
-
-                h->tokens->data[h->tokens->curr] = &new_data; 
+                h->tokens->data[h->tokens->curr]->is_number = false; 
+                h->tokens->data[h->tokens->curr]->val.sign[0] = '*'; 
                 next = peek(h);
                 t = get_type(next);
                 bp = get_bp(next);
