@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <readline/readline.h>
@@ -7,7 +8,7 @@
 
 #define HISTORY_SIZE 100
 
-char *replace_id_with_value(struct Calculator *handler, const char *line);
+char *replace_id_with_value(struct Calculator *handler, char *line);
 
 /* THIS IS AN EXAMPLE ON HOW TO USE THE LIBRARY
  * nontheless it can be used as a command line calculator */
@@ -69,18 +70,28 @@ int main(int argsc, char **argsv)
  * this is an example of using the history, is not part of the main library
  * TODO: sync history size with the id's available
  * */
-char *replace_id_with_value(struct Calculator *handler, const char *line)
+char *replace_id_with_value(struct Calculator *handler, char *line)
 {
-        size_t len = strlen(line);
-        size_t buff_size = len * 2 + 1;
-        char *new_line = malloc(sizeof(char) * buff_size);
+        char *pos = NULL;
+        size_t offset = 0;
+        size_t len = 0;
+        char *new_line = NULL;
 
+        if ((pos = strchr(line, '$')) == NULL)
+                return line;
+
+        offset = pos - line;
+        len = strlen(line);
+
+        size_t buff_size = len * 2 + 1;
+
+        new_line = malloc(sizeof(char) * buff_size);
         if (!new_line)
                 return NULL;
 
         strcpy(new_line, line);
 
-        char *pos = strstr(new_line, "$");
+        pos = new_line + offset;
 
         while (pos)
         {
