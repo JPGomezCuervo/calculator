@@ -160,9 +160,7 @@ double calculate_expr(struct Calculator *h, char *str)
 
 
         h->tokens = initialize_tokens(h);
-        rc = make_tokens(h);
-        if (rc == 0)
-                return 0.00;
+        make_tokens(h);
 
         rc = check_semantics(h);
         if (rc != 0)
@@ -358,12 +356,6 @@ int make_tokens(struct Calculator *h)
                                 .val = {.sign = {h->input[i], '\0'}}
                                 }
                                 );
-
-                if (t == TokenType_UNKNOWN)
-                {
-                        dead(h, ERR_UNKNOWN_OPERATOR);
-                        return 0;
-                }
 
                 add_token(h, &i, t);
                 tks_readed++;
@@ -686,6 +678,9 @@ error_code check_semantics(struct Calculator *h)
                         if (curr_t == TokenType_CLOSE_PARENT)
                                 return dead(h, ERR_SYNTAX);
                 }
+
+                if (curr_t == TokenType_UNKNOWN)
+                        return dead(h, ERR_UNKNOWN_OPERATOR);
 
                 was_operator = is_operator(curr_t);
         }
