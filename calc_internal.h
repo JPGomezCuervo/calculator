@@ -101,5 +101,6 @@ void dead(Calculator *handler, error_code err);
 void print_tree(struct Leaf *leaf, const char *indent);
 void debug_tokens(struct Calculator *handler);
 void debug_tree(struct Calculator *handler);
+struct Expression *copy_expression(const struct Expression *src);
 
 #endif

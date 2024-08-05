@@ -5,7 +5,7 @@
 
 typedef struct Calculator Calculator; 
 typedef struct Expression {
-    int id;
+    size_t id;
     char *expr;
     double result;
 } Expression;
@@ -17,5 +17,6 @@ struct Expression **get_history(struct Calculator *handler);
 size_t get_history_len(struct Calculator *handler);
 uint8_t get_error_code(Calculator *handler);
 char *error_message(Calculator *handler);
+struct Expression *get_history_by_id(Calculator *handler, size_t id);
 
 #endif

@@ -197,7 +197,7 @@ struct Leaf *get_free_leaf(Calculator *h)
         struct Leaf *p_leaf = NULL;
         struct Calculator_heap *p_heap = NULL;
         uint8_t *p = NULL;
-        
+
         if (h->pool.left == h->pool.right)
         {
                 rc = posix_memalign((void**)&p, ALIGNMENT, HEAP_SIZE);
@@ -214,7 +214,7 @@ struct Leaf *get_free_leaf(Calculator *h)
                 p_heap->next_heap = p;
 
                 p = p + 32;
-                
+
                 for (; p < ((uint8_t *) p_heap->next_heap) + HEAP_SIZE ; p += 32) 
                 {
                         p_leaf = (struct Leaf *) p;
@@ -796,4 +796,26 @@ size_t get_history_len(struct Calculator *h)
                 return h->history->len;
 
         return 0;
+}
+
+struct Expression *copy_expression(const struct Expression *src)
+{
+    struct Expression *copy = calc_malloc(sizeof(struct Expression));
+    size_t str_len = strlen(src->expr);
+    copy->id = src->id;
+    copy->result = src->result;
+    copy->expr = calc_malloc(sizeof(char) * (str_len + 1));
+    copy->expr = strcpy(copy->expr, src->expr);
+
+    return copy;
+}
+
+struct Expression *get_history_by_id(Calculator *h, size_t id)
+{
+        assert(h != NULL);
+
+        if (h->history_active && id < h->history->len)
+                return copy_expression(h->history->exprs[id]);
+
+        return NULL;
 }
