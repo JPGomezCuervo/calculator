@@ -571,7 +571,7 @@ struct Leaf *parse_leaf(struct Calculator *h)
 
         token_type t = get_type(*tk);
 
-        /* checks if is a unary operator */
+        /* checks if it's a unary operator */
         if (t == TokenType_OP_ADD || t == TokenType_OP_SUB)
         {
                 struct Leaf *right = parse_leaf(h); 
