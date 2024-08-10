@@ -1,10 +1,14 @@
 #include "calc_internal.h"
 #include "calc.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+
+#define HEAP_SIZE 4096
+#define ALIGNMENT 64
 
 struct Calculator
 {
@@ -12,23 +16,25 @@ struct Calculator
         struct Leaf *tree;
         char *input;
         size_t input_len;
-        enum Calc_err error;
+        error_code error;
         struct History *history;
         bool history_active;
+        struct Leaf pool;
+        struct Calculator_heap *heap;
 };
 
 const char *type_names[] = {
-        [UNARY_NEG] = "UNARY_NEG",
-        [UNARY_POS] = "UNARY_POS",
-        [OP_ADD] = "OP_ADD",
-        [OP_SUB] = "OP_SUB",
-        [OP_MUL] = "OP_MUL",
-        [OP_DIV] = "OP_DIV",
-        [OPEN_PARENT] = "OPEN_PARENT",
-        [CLOSE_PARENT] = "CLOSE_PARENT",
-        [LIMIT] = "LIMIT",
-        [NUMBER] = "NUMBER",
-        [UNKNOWN] = "UNKNOWN"
+        [TokenType_UNKNOWN] = "TNUMBER",
+        [TokenType_UNARY_NEG] = "UNARY_NEG",
+        [TokenType_UNARY_POS] = "UNARY_POS",
+        [TokenType_OP_ADD] = "OP_ADD",
+        [TokenType_OP_SUB] = "OP_SUB",
+        [TokenType_OP_MUL] = "OP_MUL",
+        [TokenType_OP_DIV] = "OP_DIV",
+        [TokenType_OPEN_PARENT] = "OPEN_PARENT",
+        [TokenType_CLOSE_PARENT] = "CLOSE_PARENT",
+        [TokenType_LIMIT] = "LIMIT",
+        [TokenType_NUMBER] = "NUMBER",
 };
 
 char *calc_err_msg [] =
@@ -37,18 +43,52 @@ char *calc_err_msg [] =
         [ERR_DIVIDE_BY_ZERO] = "division by zero",
         [ERR_UNKNOWN_OPERATOR] = "unknown operator",
         [ERR_SYNTAX] = "invalid syntax",
+        [ERR_HEAP_ALLOC] = "failed heap alloc",
 };
 
 struct Calculator *init_calculator(size_t history_size)
 {
         struct Calculator *calculator = calc_malloc(sizeof(struct Calculator));
+        uint8_t *p_pool = NULL;
+        struct Calculator_heap *p_heap = NULL;
+        struct Leaf *p_leaf = NULL;
+        int rc = 0;
+
         *calculator = (struct Calculator){
                 .tokens = NULL,
-                .input = NULL,
-                .tree = NULL,
-                .input_len = 0,
-                .error = ERR_NO_ERR,
+                        .input = NULL,
+                        .tree = NULL,
+                        .input_len = 0,
+                        .error = ERR_NO_ERR,
+                        .heap = NULL,
+                        .pool =
+                        {
+                                .data = {.is_number = true, .val.number = 0.0},
+                                .left = &calculator->pool,
+                                .right = &calculator->pool,
+                        }
         };
+
+        rc = posix_memalign((void**)&(calculator->heap), ALIGNMENT, HEAP_SIZE);
+
+        if (rc != 0)
+                exit(ERR_HEAP_ALLOC);
+
+        memset(calculator->heap, 0, HEAP_SIZE);
+
+        p_heap = calculator->heap;
+        p_heap->next_heap = NULL;
+
+        p_pool = (uint8_t*) p_heap + 32;
+
+        for (; p_pool < ((uint8_t*) p_heap) + HEAP_SIZE; p_pool += 32)
+        {
+                p_leaf = (struct Leaf *) p_pool;
+                p_leaf->right = calculator->pool.right;
+                p_leaf->left = calculator->pool.left;
+                calculator->pool.left->right = p_leaf;
+                calculator->pool.right->left = p_leaf;
+        }
 
         if (history_size != 0)
         {
@@ -67,8 +107,8 @@ struct Calculator *init_calculator(size_t history_size)
                         p_hist->exprs[i] = calc_malloc(sizeof(struct Expression));
                         *p_hist->exprs[i] = (struct Expression){
                                 .id = 0,
-                                .expr = NULL,
-                                .result = 0.0,
+                                        .expr = NULL,
+                                        .result = 0.0,
                         };
                 }
         }
@@ -80,9 +120,10 @@ struct Calculator *init_calculator(size_t history_size)
 
 double calculate_expr(struct Calculator *h, char *str)
 {
+        h->error = ERR_NO_ERR;
         if (str == NULL)
         {
-                enum Calc_err err = h->error;
+                error_code err = h->error;
                 dead(h, ERR_NO_INPUT);
                 destroy_calculator(h);
                 exit(err);
@@ -91,6 +132,7 @@ double calculate_expr(struct Calculator *h, char *str)
         double result = 0;
         int input_index = 0;
         char *psrc = str;
+        error_code rc;
 
         while (*psrc != '\0')
         {
@@ -119,9 +161,11 @@ double calculate_expr(struct Calculator *h, char *str)
 
         h->tokens = initialize_tokens(h);
         make_tokens(h);
-        check_semantics(h);
-        h->tree = parse_expr(h, MIN_LIMIT);
 
+        rc = check_semantics(h);
+        if (rc != 0)
+                return 0.00;
+        h->tree = parse_expr(h, BP_MIN_LIMIT);
         result = eval_tree(h, h->tree);
 
         if (h->history_active)
@@ -138,7 +182,7 @@ double calculate_expr(struct Calculator *h, char *str)
                 size_t len = strlen(h->input);
                 *p_hist->exprs[p_hist->len] = (struct Expression)
                 {
-                                .expr = strncpy(p_hist->exprs[p_hist->len]->expr, h->input, len),
+                        .expr = strncpy(p_hist->exprs[p_hist->len]->expr, h->input, len),
                                 .result = result,
                                 .id = p_hist->len,
                 };
@@ -151,14 +195,60 @@ double calculate_expr(struct Calculator *h, char *str)
         return result;
 }
 
-void dead(Calculator *h, enum Calc_err err)
+struct Leaf *get_free_leaf(Calculator *h)
 {
-        assert(err >= 0);
+        int rc = 0;
+        struct Leaf *p_leaf = NULL;
+        struct Calculator_heap *p_heap = NULL;
+        uint8_t *p = NULL;
 
+        if (h->pool.left == h->pool.right)
+        {
+                rc = posix_memalign((void**)&p, ALIGNMENT, HEAP_SIZE);
+
+                if (rc != 0)
+                        exit(ERR_HEAP_ALLOC);
+                p_heap = h->heap;
+
+                while (p_heap->next_heap != NULL)
+                {
+                        p_heap = (struct Calculator_heap *)p_heap->next_heap;
+                }
+
+                p_heap->next_heap = p;
+
+                p = p + 32;
+
+                for (; p < ((uint8_t *) p_heap->next_heap) + HEAP_SIZE ; p += 32) 
+                {
+                        p_leaf = (struct Leaf *) p;
+                        p_leaf->right = h->pool.right;
+                        p_leaf->left = h->pool.left;
+                        h->pool.left->right = p_leaf;
+                        h->pool.right->left = p_leaf;
+                }
+        }
+
+        p_leaf = h->pool.right;
+        h->pool.right = p_leaf->right;
+        p_leaf->right = p_leaf->left;
+
+        return p_leaf;
+}
+
+void recycle_leaf(struct Calculator *h, struct Leaf *p_leaf)
+{
+        p_leaf->left = p_leaf;
+        p_leaf->right = h->pool.right;
+        h->pool.right = p_leaf;
+}
+
+error_code dead(Calculator *h, error_code err)
+{
         fprintf(stderr, "ERROR: ");
         fprintf(stderr, "%s\n", calc_err_msg[err]);
         h->error = err;
-        // exit(err);
+        return err;
 }
 
 void *calc_malloc(size_t len)
@@ -206,14 +296,14 @@ void calc_log(char *message, const char *function, int line)
         printf("%s at %s::line %d", message, function, line);
 }
 
-void free_tree(struct Leaf *tree)
+void free_tree(struct Calculator *h, struct Leaf *tree)
 {
         if (!tree)
                 return;
-        free_tree(tree->right);
-        free_tree(tree->left);
+        free_tree(h, tree->right);
+        free_tree(h, tree->left);
 
-        free(tree);
+        recycle_leaf(h, tree);
 }
 
 void calc_cleanup(struct Calculator *h)
@@ -225,9 +315,9 @@ void calc_cleanup(struct Calculator *h)
         {
                 /*Reverse loop to take advantage of the Zero Flag cpu optmization*/
                 for (int i = (int)tokens->len - 1; i >= 0; i--)
-                        free(tokens->chars[i]);
+                        free(tokens->data[i]);
 
-                free(tokens->chars);
+                free(tokens->data);
                 free(tokens);
                 tokens = NULL;
         }
@@ -240,7 +330,7 @@ void calc_cleanup(struct Calculator *h)
 
         if (h->tree)
         {
-                free_tree(h->tree);
+                free_tree(h, h->tree);
                 h->tree = NULL;
         }
 }
@@ -248,7 +338,7 @@ void calc_cleanup(struct Calculator *h)
 struct Lexer *initialize_tokens(struct Calculator *h)
 {
         struct Lexer *tokens = calc_malloc(sizeof(struct Lexer));
-        tokens->chars = calc_malloc(sizeof(char*) * h->input_len);
+        tokens->data = calc_malloc(sizeof(struct Data*) * h->input_len);
         tokens->curr = 0;
 
         return tokens;
@@ -260,47 +350,68 @@ int make_tokens(struct Calculator *h)
         struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < h->input_len; i++)
         {
-                enum Type t = get_type(h->input[i]);
-                add_token(h, &i, t, tks_readed);
+                token_type t = get_type(
+                                (struct Data){
+                                .is_number = false,
+                                .val = {.sign = {h->input[i], '\0'}}
+                                }
+                                );
+
+                add_token(h, &i, t);
                 tks_readed++;
         }
-        tokens->chars = calc_realloc(tokens->chars, sizeof(char*) * tks_readed);
+        tokens->data = calc_realloc(tokens->data, sizeof(struct Data*) * tks_readed);
         tokens->len = tks_readed;
+        tokens->curr = 0;
 
         return tks_readed;
 }
 
-void add_token(struct Calculator *h, size_t *i, enum Type t, size_t tokens_pos) 
+void add_token(struct Calculator *h, size_t *i, token_type t) 
 {
         struct Lexer *tokens = h->tokens;
-        if (t == NUMBER)
+        struct Data **data_array = tokens->data;
+        struct Data *current_data = NULL;
+        bool decimal_mark = false;
+
+        if (t == TokenType_NUMBER)
         {
-                size_t size = 0;
                 const char *p_input = &(h->input[*i]);
+                double num = 0;
+                size_t iterations = 0;
 
                 while (is_number(*p_input) && *i < h->input_len)
                 {
-                        size++;
+                        /* checks if the number has more than one decimal mark*/
+                        if (*p_input == '.')
+                        {
+                                if (decimal_mark)
+                                        dead(h, ERR_SYNTAX);
+                                decimal_mark = true;
+                        }
+                        iterations++;
                         p_input++;
                 }
 
-                char *str = calc_malloc(sizeof(char) * (size + 1));
+                num = strtod(&(h->input[*i]), NULL);
 
-                for (size_t j = 0; j < size; j++)
-                {
-                        str[j] = h->input[*i];
-                        (*i)++;
-                }
+                current_data = calc_malloc(sizeof(struct Data));
+                current_data->is_number = true;
+                current_data->val.number = num;
 
-                str[size] = '\0';
-                tokens->chars[tokens_pos] = str;
-                (*i)--;  // Adjust index since the loop will increment i once more
+                data_array[tokens->curr] = current_data;
+                tokens->curr++;
+                *i += iterations - 1; // Adjust index since the loop will increment i once more
         }
         else
         {
-                tokens->chars[tokens_pos] = calc_malloc(sizeof(char) * 2);
-                tokens->chars[tokens_pos][0] = h->input[*i];
-                tokens->chars[tokens_pos][1] = '\0';
+                current_data = calc_malloc(sizeof(struct Data));
+                current_data->is_number = false;
+                current_data->val.sign[0] = h->input[(*i)];
+                current_data->val.sign[1] = '\0';
+
+                data_array[tokens->curr] = current_data;
+                tokens->curr++;
         }
 }
 
@@ -309,127 +420,141 @@ void debug_tokens(struct Calculator *h)
         struct Lexer *tokens = h->tokens;
         for (size_t i = 0; i < tokens->len; i++)
         {
-                printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
-                                i, 
-                                &tokens->chars[i][0],
-                                type_names[get_type(tokens->chars[i][0])],
-                                get_bp(tokens->chars[i][0])
-                      );
+                token_type t = get_type(*tokens->data[i]);
+                if (t == TokenType_NUMBER)
+                {
+                        printf("index: %zu, Value: %2.f, Type: %s, Precedence: %d\n", 
+                                        i, 
+                                        tokens->data[i]->val.number,
+                                        type_names[t],
+                                        get_bp(*tokens->data[i])
+                              );
+                }
+                else 
+                {
+                        printf("index: %zu, Value: %s, Type: %s, Precedence: %d\n", 
+                                        i, 
+                                        tokens->data[i]->val.sign,
+                                        type_names[t],
+                                        get_bp(*tokens->data[i])
+                              );
+                }
         }
 }
 
-char *get_next(struct Calculator *h)
+struct Data *get_next(struct Calculator *h)
 {
         struct Lexer *tokens = h->tokens;
         assert(tokens != NULL);
+        token_type curr_t = get_type(*tokens->data[tokens->curr]); 
 
-        char *pc = NULL;
-        if (*tokens->chars[tokens->curr] != DELIMITER)
+        struct Data *pc = NULL;
+        if (curr_t != TokenType_LIMIT)
         {
-                pc = tokens->chars[tokens->curr];
+                pc = tokens->data[tokens->curr];
                 tokens->curr++;
         }
 
         return pc;
 }
 
-char peek(struct Calculator *h)
+struct Data peek(struct Calculator *h)
 {
         struct Lexer *tokens = h->tokens;
         assert(tokens != NULL);
 
-        if (*tokens->chars[tokens->curr] != DELIMITER)
-                return *tokens->chars[tokens->curr];
-
-        return DELIMITER;
+        return *tokens->data[tokens->curr];
 }
 
-enum Type get_type(char c) 
+token_type get_type(struct Data c) 
 {
 
-        switch (c) 
+        if (c.is_number) 
+                return TokenType_NUMBER;
+
+        switch (c.val.sign[0]) 
         {
                 case '+':
-                        return OP_ADD;
+                        return TokenType_OP_ADD;
                 case '-':
-                        return OP_SUB;
+                        return TokenType_OP_SUB;
                 case '*':
-                        return OP_MUL;
+                        return TokenType_OP_MUL;
                 case '/':
-                        return OP_DIV;
+                        return TokenType_OP_DIV;
                 case '(':
-                        return OPEN_PARENT;
+                        return TokenType_OPEN_PARENT;
                 case ')':
-                        return CLOSE_PARENT;
+                        return TokenType_CLOSE_PARENT;
                 case '?':
-                        return LIMIT;
+                        return TokenType_LIMIT;
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                        return NUMBER;
+                        return TokenType_NUMBER;
                 default:
-                        return UNKNOWN;
+                        return TokenType_UNKNOWN;
         }
 }
 
-enum Bp get_bp(char c) 
+binary_power get_bp(struct Data c) 
 {
 
-        switch (c) 
+        if (c.is_number) 
+                return BP_NUMBER;
+
+        switch (c.val.sign[0]) 
         {
                 case ')':
                 case '(':
-                        return MIN_LIMIT;
+                        return BP_MIN_LIMIT;
                 case '+':
                 case '-':
                         return BP_ADD_SUB;
                 case '*':
                 case '/':
                         return BP_MUL_DIV;
-                case '0': case '1': case '2': case '3': case '4':
-                case '5': case '6': case '7': case '8': case '9':
-                        return BP_NUMBER;
                 default:
                         return BP_UNKNOWN;
         }
 }
 
-bool is_number(char c)
+inline bool is_number(char c)
 {
         return isdigit(c) || c == '.';
 }
 
-bool is_operator(enum Type t)
+bool is_operator(token_type t)
 {
         switch (t)
         {
-                case OP_ADD:
-                case OP_SUB:
-                case OP_MUL:
-                case OP_DIV:
+                case TokenType_OP_ADD:
+                case TokenType_OP_SUB:
+                case TokenType_OP_MUL:
+                case TokenType_OP_DIV:
                         return true;
                 default:
                         return false;
         }
 }
 
-bool is_parenthesis(enum Type t)
+inline bool is_parenthesis(token_type t)
 {
-        return (t == OPEN_PARENT || t == CLOSE_PARENT);
+        return (t == TokenType_OPEN_PARENT || t == TokenType_CLOSE_PARENT);
 }
 
-struct Leaf *make_leaf(char *tk)
+struct Leaf *make_leaf(struct Calculator *h, struct Data *tk)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
-        leaf->value = tk;
+        struct Leaf *leaf = get_free_leaf(h);
+        leaf->data = *tk;
         leaf->left = NULL;
         leaf->right = NULL;
         return leaf;
 }
 
-struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
+struct Leaf *make_binary_expr(struct Calculator *h, struct Data *op, struct Leaf *left, struct Leaf *right)
 {
-        struct Leaf *leaf = calc_malloc(sizeof(struct Leaf));
-        leaf->value = op;
+        struct Leaf *leaf = get_free_leaf(h);
+        leaf->data = *op;
         leaf->left = left;
         leaf->right = right;
 
@@ -438,41 +563,41 @@ struct Leaf *make_binary_expr(char *op, struct Leaf *left, struct Leaf *right)
 
 struct Leaf *parse_leaf(struct Calculator *h)
 {
-        char *tk = get_next(h);
+        struct Data *tk = get_next(h);
         struct Leaf *leaf = NULL;
 
         if (tk == NULL)
                 return leaf;
 
-        enum Type t = get_type(*tk);
+        token_type t = get_type(*tk);
 
         /* checks if is a unary operator */
-        if (t == OP_ADD || t == OP_SUB)
+        if (t == TokenType_OP_ADD || t == TokenType_OP_SUB)
         {
                 struct Leaf *right = parse_leaf(h); 
-                leaf = make_leaf(tk);
+                leaf = make_leaf(h, tk);
                 leaf->right = right;
         }
-        else if (t == OPEN_PARENT)
+        else if (t == TokenType_OPEN_PARENT)
         {
-                leaf = parse_expr(h, MIN_LIMIT);
+                leaf = parse_expr(h, BP_MIN_LIMIT);
                 /* consumes close parenthesis */
                 get_next(h); 
         }
         else 
-                leaf = make_leaf(tk);
+                leaf = make_leaf(h, tk);
 
         return leaf;
 }
 
-struct Leaf *parse_expr(struct Calculator *h, enum Bp bp)
+struct Leaf *parse_expr(struct Calculator *h, binary_power b)
 {
         struct Leaf *left = parse_leaf(h);
         struct Leaf *node = NULL;
 
         while (true)
         {
-                node = increasing_prec(h, left, bp);
+                node = increasing_prec(h, left, b);
 
                 if (left == node)
                         break;
@@ -481,19 +606,20 @@ struct Leaf *parse_expr(struct Calculator *h, enum Bp bp)
         return left;
 }
 
-struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, enum Bp min_bp)
+struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_power min_bp)
 {
-        char next = peek(h);
-        enum Type t = get_type(next);
-        enum Bp bp = get_bp(next);
+        struct Data next = peek(h);
+        token_type t = get_type(next);
+        binary_power bp = get_bp(next);
 
 
-        if (next == DELIMITER || t == CLOSE_PARENT)
+        if (t == TokenType_LIMIT|| t == TokenType_CLOSE_PARENT)
                 return left;
 
-        if  (t == OPEN_PARENT && is_number(*left->value))
+        if  (t == TokenType_OPEN_PARENT && left->data.is_number)
         {
-                h->tokens->chars[h->tokens->curr][0] = '*';
+                h->tokens->data[h->tokens->curr]->is_number = false; 
+                h->tokens->data[h->tokens->curr]->val.sign[0] = '*'; 
                 next = peek(h);
                 t = get_type(next);
                 bp = get_bp(next);
@@ -503,35 +629,39 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, enum Bp min
         {
                 while (bp >= min_bp) 
                 {
-                        char *op = get_next(h);
+                        struct Data *op = get_next(h);
                         struct Leaf *right = parse_expr(h, bp);
-                        left = make_binary_expr(op,left, right);
+                        left = make_binary_expr(h, op,left, right);
                         next = peek(h);
                         t = get_type(next);
 
-                        if (next == DELIMITER || t == CLOSE_PARENT)
+                        if (t == TokenType_LIMIT || t == TokenType_CLOSE_PARENT)
                                 break;
                 }
         }
         return left;
 }
 
-void check_semantics(struct Calculator *h)
+error_code check_semantics(struct Calculator *h)
 {
         assert(h != NULL);
-        assert(h->tokens->chars != NULL);
         struct Lexer *tokens = h->tokens;
 
         bool was_operator = false;
 
         for (size_t i = 0; i < h->tokens->len; i++)
         {
-                enum Type curr_t = get_type(*tokens->chars[i]);
+                token_type curr_t; 
 
-                if (i == 0 && (curr_t == OP_MUL || curr_t == OP_DIV))
-                        dead(h, ERR_SYNTAX);
+                if (tokens->data[i]->is_number)
+                        curr_t = TokenType_NUMBER;
+                else
+                        curr_t = get_type(*tokens->data[i]);
 
-                if (is_number(*tokens->chars[i]))
+                if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV))
+                        return dead(h, ERR_SYNTAX);
+
+                if (curr_t == TokenType_NUMBER)
                 {
                         was_operator = false;
                         continue;
@@ -540,47 +670,50 @@ void check_semantics(struct Calculator *h)
                 if (was_operator)
                 {
                         if (is_operator(curr_t)) 
-                                dead(h, ERR_SYNTAX);
+                                return dead(h, ERR_SYNTAX);
 
-                        if (curr_t == LIMIT)
-                                dead(h, ERR_SYNTAX);
+                        if (curr_t == TokenType_LIMIT)
+                                return dead(h, ERR_SYNTAX);
 
-                        if (curr_t == CLOSE_PARENT)
-                                dead(h, ERR_SYNTAX);
+                        if (curr_t == TokenType_CLOSE_PARENT)
+                                return dead(h, ERR_SYNTAX);
                 }
+
+                if (curr_t == TokenType_UNKNOWN)
+                        return dead(h, ERR_UNKNOWN_OPERATOR);
 
                 was_operator = is_operator(curr_t);
         }
+        return ERR_NO_ERR;
 }
 
 double eval_tree(Calculator *h, struct Leaf *tree)
 {
         assert(tree != NULL);
-        assert(tree->value != NULL);
 
         double lhs = 0.0, rhs = 0.0;
-        enum Type t = get_type(*tree->value);
+        token_type t = get_type(tree->data);
 
-        if (t == NUMBER) 
-                return strtod(tree->value, NULL);
+        if (t == TokenType_NUMBER) 
+                return tree->data.val.number;
 
         lhs = tree->left != NULL ? eval_tree(h, tree->left) : 0;
         rhs = tree->right != NULL ? eval_tree(h, tree->right) : 0;
 
         switch (t) 
         {
-                case OP_ADD:
+                case TokenType_OP_ADD:
                         return lhs + rhs;
-                case OP_SUB:
+                case TokenType_OP_SUB:
                         return lhs - rhs;
-                case OP_MUL:
+                case TokenType_OP_MUL:
                         return lhs * rhs;
-                case OP_DIV:
+                case TokenType_OP_DIV:
                         if (rhs == 0)
                                 dead(h, ERR_DIVIDE_BY_ZERO);
 
                         return lhs / rhs;
-                case UNARY_NEG:
+                case TokenType_UNARY_NEG:
                         return -rhs;
                 default:
                         dead(h, ERR_UNKNOWN_OPERATOR);
@@ -599,7 +732,10 @@ void print_tree(struct Leaf *leaf, const char *indent)
         if (leaf == NULL)
                 return;
 
-        printf("%sHead: %s\n", indent, leaf->value ? leaf->value : "NULL");
+        if  (leaf->data.is_number)
+                printf("%sHead: %2.f\n", indent, leaf->data.val.number);
+        else
+                printf("%sHead: %s\n", indent, leaf->data.val.sign);
 
         if (leaf->left)
         {
@@ -618,7 +754,7 @@ void print_tree(struct Leaf *leaf, const char *indent)
         }
 }
 
-enum Calc_err get_error_code(Calculator *h)
+error_code get_error_code(Calculator *h)
 {
         return h->error;
 }
@@ -634,6 +770,9 @@ char *error_message(Calculator *h)
 void destroy_calculator(Calculator *h)
 {
 
+        uint8_t *p, *p_next;
+        p = (uint8_t*) h->heap;
+
         if (h->history_active)
         {
                 for (size_t i = 0; i < h->history->capacity; i++) 
@@ -643,6 +782,13 @@ void destroy_calculator(Calculator *h)
                 }
                 free(h->history->exprs);
                 free(h->history);
+        }
+
+        while (p != NULL)
+        {
+                p_next = (uint8_t *)((struct Calculator_heap *)p)->next_heap;
+                free(p);
+                p = p_next;
         }
 
         free(h);
@@ -663,4 +809,26 @@ size_t get_history_len(struct Calculator *h)
                 return h->history->len;
 
         return 0;
+}
+
+struct Expression *copy_expression(const struct Expression *src)
+{
+    struct Expression *copy = calc_malloc(sizeof(struct Expression));
+    size_t str_len = strlen(src->expr);
+    copy->id = src->id;
+    copy->result = src->result;
+    copy->expr = calc_malloc(sizeof(char) * (str_len + 1));
+    copy->expr = strcpy(copy->expr, src->expr);
+
+    return copy;
+}
+
+struct Expression *get_history_by_id(Calculator *h, size_t id)
+{
+        assert(h != NULL);
+
+        if (h->history_active && id < h->history->len)
+                return copy_expression(h->history->exprs[id]);
+
+        return NULL;
 }
