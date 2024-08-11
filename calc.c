@@ -627,7 +627,7 @@ struct Leaf *increasing_prec(struct Calculator *h,struct Leaf *left, binary_powe
 
         if (is_operator(t))
         {
-                while (bp >= min_bp) 
+                while (bp > min_bp) 
                 {
                         struct Data *op = get_next(h);
                         struct Leaf *right = parse_expr(h, bp);
