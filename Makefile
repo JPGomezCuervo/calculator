@@ -1,6 +1,6 @@
 CC = gcc 
 OP = -o0
-FLAGS = -std=c99 -Wall -Wextra -pedantic -ggdb -Wunused-function -Wmissing-prototypes -Wunreachable-code -Wmissing-declarations -Wshadow -Wcast-align
+FLAGS = -std=c99 -Wall -Wextra -pedantic -ggdb -Wunused-function -Wmissing-prototypes -Wunreachable-code -Wmissing-declarations -Wshadow -Wcast-align -fPIC 
 INSTALL_PATH = /usr/local
 
 # The library
@@ -34,4 +34,4 @@ install: $(DYNAMIC_LIBRARY) $(STATIC_LIBRARY)
 	install -d $(INSTALL_PATH)/lib
 
 clean:
-	rm $(EXAMPLE_BINARY) $(OBJECTS) $(DYNAMIC_LIBRARY) $(STATIC_LIBRARY) $(EXAMPLE_BINARY)_static
+	rm *.o $(EXAMPLE_BINARY) $(OBJECTS) $(DYNAMIC_LIBRARY) $(STATIC_LIBRARY) $(EXAMPLE_BINARY)_static
