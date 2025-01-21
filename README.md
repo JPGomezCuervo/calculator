@@ -1,7 +1,7 @@
 # Command Line Calculator
 
 ## Overview
-A command line calculator built from scratch that supports direct expression evaluation, an interactive mode, and a history feature. The calculator uses Pratt parsing for expression parsing and features a custom pool allocator for memory management. It can also be used as a library—simply ignore the `main.c` file.
+A command line calculator built from scratch that supports direct expression evaluation, an interactive mode, and a history feature. The calculator uses Pratt for parsing expressions and features a custom pool allocator for memory management. It can also be used as a library—simply ignore the `main.c` file.
 
 ## Features
 - **Pratt Parsing**: Efficient parsing technique for arithmetic expressions.
