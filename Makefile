@@ -4,7 +4,7 @@ FLAGS = -std=c99 -Wall -Wextra -pedantic -ggdb -Wunused-function -Wmissing-proto
 OBJECTS = main.o calc.o
 CFILES = main.c calc.c
 BINARY = calc
-LIBS = -lreadline
+LIBS = -lreadline -lm
 INSTALL_PATH = /usr/local/bin
 
 all: $(BINARY)

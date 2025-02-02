@@ -11,9 +11,10 @@
 #define ERR_NO_ERR 0
 #define ERR_NO_INPUT 1
 #define ERR_DIVIDE_BY_ZERO 2
-#define ERR_UNKNOWN_OPERATOR 3
-#define ERR_SYNTAX 4
-#define ERR_HEAP_ALLOC 5
+#define ERR_MODULE_BY_ZERO 3
+#define ERR_UNKNOWN_OPERATOR 4
+#define ERR_SYNTAX 5
+#define ERR_HEAP_ALLOC 6
 
 #define TokenType_UNKNOWN      0
 #define TokenType_UNARY_NEG    1
@@ -21,17 +22,18 @@
 #define TokenType_OP_ADD       3
 #define TokenType_OP_SUB       4
 #define TokenType_OP_MUL       5
-#define TokenType_OP_DIV       6
-#define TokenType_OPEN_PARENT  7
-#define TokenType_CLOSE_PARENT 8
-#define TokenType_LIMIT        9
-#define TokenType_NUMBER      10
+#define TokenType_OP_MOD       6
+#define TokenType_OP_DIV       7
+#define TokenType_OPEN_PARENT  8
+#define TokenType_CLOSE_PARENT 9
+#define TokenType_LIMIT        10
+#define TokenType_NUMBER      11
 
 #define BP_UNKNOWN      0
 #define BP_MIN_LIMIT    1
 #define BP_NUMBER       2
 #define BP_ADD_SUB      3
-#define BP_MUL_DIV      4
+#define BP_MUL_DIV_MOD  4
 #define BP_MAX          5
 
 typedef uint8_t token_type;

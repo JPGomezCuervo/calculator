@@ -2,6 +2,7 @@
 #include "calc.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -30,6 +31,7 @@ const char *type_names[] = {
         [TokenType_OP_ADD] = "OP_ADD",
         [TokenType_OP_SUB] = "OP_SUB",
         [TokenType_OP_MUL] = "OP_MUL",
+        [TokenType_OP_MOD] = "OP_MOD",
         [TokenType_OP_DIV] = "OP_DIV",
         [TokenType_OPEN_PARENT] = "OPEN_PARENT",
         [TokenType_CLOSE_PARENT] = "CLOSE_PARENT",
@@ -41,6 +43,7 @@ char *calc_err_msg [] =
 {
         [ERR_NO_INPUT] = "no input provided",
         [ERR_DIVIDE_BY_ZERO] = "division by zero",
+        [ERR_MODULE_BY_ZERO] = "module by zero",
         [ERR_UNKNOWN_OPERATOR] = "unknown operator",
         [ERR_SYNTAX] = "invalid syntax",
         [ERR_HEAP_ALLOC] = "failed heap alloc",
@@ -482,6 +485,8 @@ token_type get_type(struct Data c)
                         return TokenType_OP_MUL;
                 case '/':
                         return TokenType_OP_DIV;
+                case '%':
+                        return TokenType_OP_MOD;
                 case '(':
                         return TokenType_OPEN_PARENT;
                 case ')':
@@ -512,7 +517,8 @@ binary_power get_bp(struct Data c)
                         return BP_ADD_SUB;
                 case '*':
                 case '/':
-                        return BP_MUL_DIV;
+                case '%':
+                        return BP_MUL_DIV_MOD;
                 default:
                         return BP_UNKNOWN;
         }
@@ -530,6 +536,7 @@ bool is_operator(token_type t)
                 case TokenType_OP_ADD:
                 case TokenType_OP_SUB:
                 case TokenType_OP_MUL:
+                case TokenType_OP_MOD:
                 case TokenType_OP_DIV:
                         return true;
                 default:
@@ -658,7 +665,7 @@ error_code check_semantics(struct Calculator *h)
                 else
                         curr_t = get_type(*tokens->data[i]);
 
-                if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV))
+                if (i == 0 && (curr_t == TokenType_OP_MUL || curr_t == TokenType_OP_DIV || curr_t == TokenType_OP_MOD))
                         return dead(h, ERR_SYNTAX);
 
                 if (curr_t == TokenType_NUMBER)
@@ -713,6 +720,12 @@ double eval_tree(Calculator *h, struct Leaf *tree)
                                 dead(h, ERR_DIVIDE_BY_ZERO);
 
                         return lhs / rhs;
+
+                case TokenType_OP_MOD:
+                        if (rhs == 0)
+                                dead(h, ERR_MODULE_BY_ZERO);
+
+                        return fmod(lhs,rhs);
                 case TokenType_UNARY_NEG:
                         return -rhs;
                 default:
