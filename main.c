@@ -11,7 +11,7 @@
 char *replace_id_with_value(struct Calculator *handler, char *line);
 
 /* THIS IS AN EXAMPLE ON HOW TO USE THE LIBRARY
- * nontheless it can be used as a command line calculator */
+ * nonetheless it can be used as a command line calculator */
 int main(int argsc, char **argsv)
 {
         Calculator *calculator = init_calculator(HISTORY_SIZE);
